@@ -1,0 +1,47 @@
+# ============================================
+# OrchestraAI — Git Ignore
+# ============================================
+
+# Environment & Secrets
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.Python
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Output (generated files)
+output/code/*
+output/images/*
+!output/code/.gitkeep
+!output/images/.gitkeep
+
+# Tests
+.pytest_cache/
+htmlcov/
+.coverage
