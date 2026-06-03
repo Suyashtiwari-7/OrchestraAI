@@ -465,7 +465,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const mascotCloseBtn = document.getElementById("mascot-close-btn");
     const mascotSubmitBtn = document.getElementById("mascot-submit-btn");
     const mascotInput = document.getElementById("mascot-input");
-    const welcomeScreen = document.getElementById("welcome-screen");
 
     // Toggle mascot quick command window
     robotMascot.addEventListener("click", () => {
