@@ -260,9 +260,20 @@ document.addEventListener("DOMContentLoaded", () => {
         let metadataHTML = "";
         let toolsHTML = "";
         
+        let isTerminalCommand = false;
+        let commandStr = "";
+        let commandReasoning = "";
+        
+        if (role === "assistant" && text.startsWith("PENDING_TERMINAL_COMMAND:")) {
+            isTerminalCommand = true;
+            const parts = text.split(":");
+            commandStr = parts[1];
+            commandReasoning = parts.slice(2).join(":");
+        }
+        
         // Add metadata headers for assistant
         if (role === "assistant" && metadata) {
-            const providerClass = metadata.provider_used.toLowerCase();
+            const providerClass = metadata.provider_used ? metadata.provider_used.toLowerCase() : "default";
             const fallbackHTML = metadata.used_fallback ? `<span class="msg-meta-pill fallback-tag">⚠ Fallback Used</span>` : "";
             const latencyText = metadata.latency_ms > 0 ? `<span class="msg-meta-pill latency">⏱ ${metadata.latency_ms.toFixed(0)}ms</span>` : "";
             
@@ -287,6 +298,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     </span>
                     ${latencyText}
                     ${fallbackHTML}
+                    <button class="msg-meta-pill tts-btn" onclick="toggleReadAloud(this)" title="Read Aloud" style="cursor:pointer; border-radius:12px; margin-left:auto;">
+                        🔊 Listen
+                    </button>
                 </div>
             `;
 
@@ -318,7 +332,28 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        const parsedContent = parseMarkdown(text);
+        let parsedContent = "";
+        if (isTerminalCommand) {
+            parsedContent = `
+                <div class="terminal-card">
+                    <div class="terminal-title">
+                        <span>⚠️ Pending Terminal Command Execution</span>
+                    </div>
+                    <div class="terminal-reasoning">
+                        <strong>Reasoning:</strong> ${commandReasoning}
+                    </div>
+                    <div class="terminal-cmd-block">
+                        <code>${commandStr}</code>
+                    </div>
+                    <div class="terminal-actions">
+                        <button class="terminal-btn approve" onclick="confirmTerminalCommand(this, '${commandStr}')">Run Command</button>
+                        <button class="terminal-btn reject" onclick="rejectTerminalCommand(this)">Reject</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            parsedContent = parseMarkdown(text);
+        }
         
         wrapper.innerHTML = `
             ${metadataHTML}
@@ -423,4 +458,186 @@ document.addEventListener("DOMContentLoaded", () => {
 
         return html;
     }
+
+    // --- Robot Mascot Interaction ---
+    const robotMascot = document.getElementById("robot-mascot");
+    const mascotCommandWindow = document.getElementById("mascot-command-window");
+    const mascotCloseBtn = document.getElementById("mascot-close-btn");
+    const mascotSubmitBtn = document.getElementById("mascot-submit-btn");
+    const mascotInput = document.getElementById("mascot-input");
+    const welcomeScreen = document.getElementById("welcome-screen");
+
+    // Toggle mascot quick command window
+    robotMascot.addEventListener("click", () => {
+        mascotCommandWindow.classList.toggle("hidden");
+        if (!mascotCommandWindow.classList.contains("hidden")) {
+            mascotInput.focus();
+        }
+    });
+
+    // Close mascot window
+    mascotCloseBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        mascotCommandWindow.classList.add("hidden");
+    });
+
+    // Submit quick command from mascot
+    const submitMascotCommand = async () => {
+        const text = mascotInput.value.trim();
+        if (!text) return;
+
+        mascotInput.value = "";
+        mascotCommandWindow.classList.add("hidden");
+
+        // Display user bubble in chat
+        appendMessageBubble("user", text);
+        welcomeScreen.classList.add("hidden");
+
+        // Animate bot to listening state
+        robotMascot.className = "robot-mascot listening";
+        showLoader("Maestro Bot parsing command...");
+
+        try {
+            const response = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    prompt: text,
+                    provider_override: activeOverrideProvider
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || "Server error occurred");
+            }
+
+            const data = await response.json();
+            hideLoader();
+
+            // Display assistant response
+            appendMessageBubble("assistant", data.content, data);
+
+            // Animate bot to success state
+            robotMascot.className = "robot-mascot success";
+            setTimeout(() => {
+                robotMascot.className = "robot-mascot";
+            }, 2500);
+
+        } catch (error) {
+            hideLoader();
+            appendMessageBubble("assistant", `❌ **Error:** ${error.message}. Please verify your API keys are configured and try again.`);
+            
+            // Animate bot to error state
+            robotMascot.className = "robot-mascot error";
+            setTimeout(() => {
+                robotMascot.className = "robot-mascot";
+            }, 2500);
+        }
+    };
+
+    mascotSubmitBtn.addEventListener("click", submitMascotCommand);
+    mascotInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            submitMascotCommand();
+        }
+    });
+
+    // --- Global Window Helpers (TTS & Terminal execution) ---
+    
+    // Text-to-Speech (TTS)
+    let currentUtterance = null;
+    window.toggleReadAloud = (button) => {
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            if (currentUtterance && currentUtterance.button === button) {
+                button.innerHTML = "🔊 Listen";
+                currentUtterance = null;
+                return;
+            }
+        }
+
+        const bubbleWrapper = button.closest(".chat-bubble-wrapper");
+        const bubble = bubbleWrapper.querySelector(".chat-bubble");
+        
+        // Extract clean text (removing copy blocks and pending commands)
+        let cleanText = bubble.innerText;
+        cleanText = cleanText.replace(/COPY\n/g, "");
+        
+        // Strip out pending terminal command block text if present
+        if (cleanText.includes("Pending Terminal Command Execution")) {
+            cleanText = "This response is a pending terminal command awaiting your execution approval.";
+        }
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.button = button;
+
+        utterance.onend = () => {
+            button.innerHTML = "🔊 Listen";
+            currentUtterance = null;
+        };
+
+        utterance.onerror = () => {
+            button.innerHTML = "🔊 Listen";
+            currentUtterance = null;
+        };
+
+        button.innerHTML = "⏹ Stop";
+        currentUtterance = utterance;
+        window.speechSynthesis.speak(utterance);
+    };
+
+    // Review & Proceed Command Executor
+    window.confirmTerminalCommand = async (button, command) => {
+        button.disabled = true;
+        button.innerText = "Running...";
+        button.nextElementSibling.disabled = true;
+        
+        // Animate mascot to listening state
+        const mascot = document.getElementById("robot-mascot");
+        mascot.className = "robot-mascot listening";
+        
+        try {
+            const response = await fetch("/api/terminal/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ command })
+            });
+            
+            const data = await response.json();
+            
+            // Remove button panel and append status
+            const actionsDiv = button.parentNode;
+            if (data.success) {
+                actionsDiv.innerHTML = `<span style="color:var(--accent-green)">✓ Executed successfully</span>`;
+                mascot.className = "robot-mascot success";
+                setTimeout(() => mascot.className = "robot-mascot", 2000);
+            } else {
+                actionsDiv.innerHTML = `<span style="color:red">✗ Failed to execute</span>`;
+                mascot.className = "robot-mascot error";
+                setTimeout(() => mascot.className = "robot-mascot", 2000);
+            }
+            
+            // Append response output bubble
+            appendMessageBubble("assistant", data.formatted_output, {
+                task_type: "system_command",
+                model_used: "System Shell",
+                provider_used: "localhost",
+                latency_ms: 0,
+                used_fallback: false
+            }, true);
+            
+        } catch (error) {
+            button.innerText = "Error";
+            console.error(error);
+            mascot.className = "robot-mascot error";
+            setTimeout(() => mascot.className = "robot-mascot", 2000);
+        }
+    };
+
+    window.rejectTerminalCommand = (button) => {
+        button.disabled = true;
+        button.previousElementSibling.disabled = true;
+        button.parentNode.innerHTML = `<span style="color:var(--text-disabled)">✗ Command rejected by user</span>`;
+    };
 });

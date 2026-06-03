@@ -42,12 +42,15 @@ Your job is to analyze the user's input and classify it into EXACTLY ONE task ca
 
 7. **system_command** — The user wants to launch local applications, open specific websites/URLs in specific web browsers, or trigger system actions on their machine. Keywords: "open", "launch", "run", "start" combined with applications (notepad, calculator) or browser preferences ("in brave", "in chrome", "in edge").
 
-8. **general** — General conversation, greetings, questions that don't fit other categories, meta-questions about the AI itself.
+8. **web_search** — The user asks about current events, news, real-time information, weather, live stock/crypto prices, or questions that require searching the internet/live web for the latest info. Keywords: "news", "current", "weather", "latest", "today", "live price", "search for".
+
+9. **general** — General conversation, greetings, questions that don't fit other categories, meta-questions about the AI itself.
 
 ## Rules:
 - If the input contains a URL (starts with http:// or https://), classify as "web_scrape".
 - If the input explicitly asks to create/generate/draw an image or visual, classify as "image_generation".
 - If the input is asking to open/launch/run/start local applications or websites in browsers, classify as "system_command".
+- If the input requires real-time information, current news, weather, live data, or queries starting with "search", classify as "web_search".
 - If unsure between categories, prefer "general".
 - The confidence score should reflect how certain you are (0.0 to 1.0).
 
@@ -157,6 +160,14 @@ class TaskClassifier:
                 task_type=TaskType.SYSTEM_COMMAND,
                 confidence=1.0,
                 reasoning=f"User used {cmd} command.",
+                raw_input=text,
+            )
+
+        if lower.startswith("/search "):
+            return ClassificationResult(
+                task_type=TaskType.WEB_SEARCH,
+                confidence=1.0,
+                reasoning="User used /search command.",
                 raw_input=text,
             )
 

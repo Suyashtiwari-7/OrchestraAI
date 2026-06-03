@@ -145,6 +145,41 @@
         </main>
     </div>
 
+    <!-- Floating Robot Mascot widget -->
+    <div id="robot-mascot" class="robot-mascot" title="Maestro Bot - Quick Commands">
+        <div class="bot-antenna">
+            <span class="antenna-light"></span>
+        </div>
+        <div class="bot-head">
+            <div class="bot-ear left"></div>
+            <div class="bot-eyes">
+                <span class="eye left"></span>
+                <span class="eye right"></span>
+            </div>
+            <div class="bot-mouth"></div>
+            <div class="bot-ear right"></div>
+        </div>
+        <div class="bot-body">
+            <div class="bot-chest"></div>
+        </div>
+    </div>
+
+    <!-- Mascot Quick Command Window -->
+    <div id="mascot-command-window" class="mascot-command-window hidden">
+        <div class="mascot-header">
+            <h3>🤖 Maestro Command Overlay</h3>
+            <button id="mascot-close-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="mascot-body">
+            <p id="mascot-speech" class="mascot-speech">Hello! I am Maestro Bot. Give me a local command or instruction to run!</p>
+            <div class="mascot-input-row">
+                <input type="text" id="mascot-input" placeholder="e.g. open notepad, run git status..." autocomplete="off">
+                <button id="mascot-submit-btn" class="submit-btn">Run</button>
+            </div>
+            <div id="mascot-status" class="mascot-status hidden"></div>
+        </div>
+    </div>
+
     <!-- Script assets -->
     <script src="/app.js"></script>
 </body>

@@ -33,9 +33,11 @@ from .tools.file_writer import process_response_for_files
 from .tools.web_scraper import extract_url, scrape_url, format_scraped_content
 from .tools.image_saver import save_image
 from .tools.system_executor import execute_system_command
+from .tools.web_search import execute_web_search
+from .tools.document_reader import gather_referenced_documents
 
 SYSTEM_COMMAND_PROMPT = """You are a system command interpreter for OrchestraAI.
-Your job is to parse the user's intent to open a URL/website or launch a local application, and return a strict JSON block.
+Your job is to parse the user's intent to open a URL/website, launch a local application, or run a terminal command, and return a strict JSON block.
 
 Supported Browsers:
 - "brave": Brave Browser
@@ -48,19 +50,16 @@ Supported Apps:
 - "calculator": Windows Calculator
 - "explorer": Windows File Explorer
 
-Common URL/Alias Mapping:
-- "whatsapp": "https://web.whatsapp.com"
-- "youtube": "https://youtube.com"
-- "google": "https://google.com"
-- "github": "https://github.com"
+Supported Terminal Commands:
+- Any developer utility commands like "git status", "git diff", "dir", "ipconfig", "ping", "pip list", "pytest", "python --version", etc.
 
 Response Format:
 You MUST respond with a single JSON object. No markdown wrapping, no code blocks, no ```json formatting, no other explanation or text.
 
 JSON Structure:
 {
-  "action": "open_browser" | "launch_app" | "invalid",
-  "target": "<url_or_app_name>",
+  "action": "open_browser" | "launch_app" | "run_terminal" | "invalid",
+  "target": "<url_or_app_name_or_command_string>",
   "browser": "brave" | "chrome" | "edge" | "default" | null,
   "reasoning": "<brief explanation of the extraction>"
 }
@@ -72,8 +71,8 @@ Output: {"action": "open_browser", "target": "https://web.whatsapp.com", "browse
 2. Input: "open notepad"
 Output: {"action": "launch_app", "target": "notepad", "browser": null, "reasoning": "Open local Notepad application"}
 
-3. Input: "open cnn.com in chrome"
-Output: {"action": "open_browser", "target": "https://cnn.com", "browser": "chrome", "reasoning": "Open cnn.com website in Google Chrome"}
+3. Input: "run git status"
+Output: {"action": "run_terminal", "target": "git status", "browser": null, "reasoning": "Check git repository status"}
 """
 
 # Set up logging
@@ -105,6 +104,9 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     prompt: str
     provider_override: Optional[str] = None  # e.g. "gemini", "groq", "cerebras"
+
+class ExecuteCommandRequest(BaseModel):
+    command: str
 
 class ChatResponse(BaseModel):
     success: bool
@@ -190,6 +192,64 @@ def clear_history():
     memory.clear()
     return {"success": True, "message": "Conversation history cleared."}
 
+@app.post("/api/terminal/execute")
+def execute_terminal_command(request: ExecuteCommandRequest):
+    """Execute a local terminal command after user approval."""
+    import subprocess
+    cmd = request.command.strip()
+    if not cmd:
+        raise HTTPException(status_code=400, detail="Command cannot be empty.")
+        
+    try:
+        # Run command in the project root directory
+        res = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=30.0,
+            cwd=str(settings.project_root)
+        )
+        
+        output = res.stdout if res.returncode == 0 else res.stderr
+        if not output:
+            output = res.stderr if res.stderr else "[Command executed successfully with no output]"
+            
+        success = res.returncode == 0
+        response_text = f"💻 **Terminal Output for `{cmd}`**:\n\n```\n{output.strip()}\n```"
+        
+        # Add to history
+        memory.add_assistant_message(
+            content=response_text,
+            model_used="System Shell",
+            provider="localhost",
+            task_type="system_command"
+        )
+        
+        return {
+            "success": success,
+            "stdout": res.stdout.strip(),
+            "stderr": res.stderr.strip(),
+            "returncode": res.returncode,
+            "formatted_output": response_text
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "Command execution timed out (30 seconds limit exceeded).",
+            "returncode": -1,
+            "formatted_output": "❌ **Command execution timed out (30s limit).**"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": str(e),
+            "returncode": -2,
+            "formatted_output": f"❌ **Command failed to run**: {str(e)}"
+        }
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     """Classify and route the user prompt, invoking fallbacks & tools as needed."""
@@ -224,6 +284,24 @@ def chat(request: ChatRequest):
     elif lower_input.startswith("@cohere "):
         provider_override = "cohere"
         clean_input = user_input[8:].strip()
+
+    # 1.5 Scan for local document references in prompt and inject content as context
+    referenced_docs = gather_referenced_documents(clean_input, settings.project_root)
+    if referenced_docs:
+        doc_contexts = []
+        for doc in referenced_docs:
+            doc_contexts.append(
+                f"--- File Content: {doc['filename']} ({doc['type'].upper()}) ---\n"
+                f"{doc['content']}\n"
+                f"--- End of File Content: {doc['filename']} ---"
+            )
+        combined_docs_text = "\n\n".join(doc_contexts)
+        clean_input = (
+            f"Here is the local file content context:\n\n"
+            f"{combined_docs_text}\n\n"
+            f"Please refer to the above file contents when answering the following prompt:\n"
+            f"{clean_input}"
+        )
 
     # 2. Classify task (with potential provider override config mapping)
     if provider_override:
@@ -280,6 +358,31 @@ def chat(request: ChatRequest):
             raw_input=formatted_prompt,
         )
         clean_input = formatted_prompt
+
+    # 3.5 Handle Web Search Task
+    if classification.task_type == TaskType.WEB_SEARCH or lower_input.startswith("/search "):
+        search_query = clean_input
+        if search_query.lower().startswith("/search "):
+            search_query = search_query[8:].strip()
+            
+        search_res = execute_web_search(search_query)
+        if search_res["success"]:
+            formatted_search_prompt = (
+                f"The user wants information requiring a real-time web search.\n"
+                f"Search Query: {search_query}\n\n"
+                f"Here is the context scraped from the top search results:\n\n"
+                f"{search_res['context_text']}\n\n"
+                f"Please synthesize this search context to write a highly detailed, helpful, and accurate response to the user's query.\n"
+                f"Include mentions of the source URLs/titles as references in your response.\n\n"
+                f"User Query: {search_query}"
+            )
+            classification = ClassificationResult(
+                task_type=TaskType.WEB_SEARCH,
+                confidence=1.0,
+                reasoning="DuckDuckGo Search Grounded Context",
+                raw_input=formatted_search_prompt,
+            )
+            clean_input = formatted_search_prompt
 
     # 4. Handle Image Generation
     if classification.task_type == TaskType.IMAGE_GENERATION or lower_input.startswith("/image "):
@@ -357,7 +460,10 @@ def chat(request: ChatRequest):
             latency = (time.time() - start_time) * 1000
 
             if exec_res.get("success"):
-                response_text = f"💻 **System Command Executed Successfully**\n\n* **Reasoning**: {exec_res.get('reasoning')}\n* **Details**: {exec_res.get('details')}"
+                if exec_res.get("action") == "run_terminal":
+                    response_text = f"PENDING_TERMINAL_COMMAND:{exec_res.get('command')}:{exec_res.get('reasoning')}"
+                else:
+                    response_text = f"💻 **System Command Executed Successfully**\n\n* **Reasoning**: {exec_res.get('reasoning')}\n* **Details**: {exec_res.get('details')}"
                 
                 memory.add_assistant_message(
                     content=response_text,

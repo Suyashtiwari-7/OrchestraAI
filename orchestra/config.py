@@ -35,6 +35,7 @@ class TaskType(Enum):
     IMAGE_GENERATION = "image_generation"
     WEB_SCRAPE = "web_scrape"
     SYSTEM_COMMAND = "system_command"
+    WEB_SEARCH = "web_search"
     GENERAL = "general"
 
 
@@ -203,6 +204,11 @@ ROUTING_TABLE: dict[TaskType, RouteConfig] = {
         primary="gemini-2.0-flash",
         fallback="groq-llama",
         description="Launch local applications or open websites in specific browsers",
+    ),
+    TaskType.WEB_SEARCH: RouteConfig(
+        primary="cohere-command-r-plus",
+        fallback="groq-llama",
+        description="Search the web for real-time information using DuckDuckGo",
     ),
 }
 

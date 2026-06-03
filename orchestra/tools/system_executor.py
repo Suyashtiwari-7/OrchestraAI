@@ -154,6 +154,17 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
                 "details": f"Successfully launched local application: {target.capitalize()}."
             }
 
+        elif action == "run_terminal":
+            # For security, we don't run it right away. We return a status indicating
+            # it needs manual confirmation.
+            return {
+                "success": True,
+                "action": "run_terminal",
+                "command": target,
+                "reasoning": reasoning,
+                "details": f"Needs approval to execute command: '{target}'"
+            }
+
         else:
             return {
                 "success": False,
