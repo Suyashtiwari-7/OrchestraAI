@@ -496,6 +496,12 @@ button {
     border-color: rgba(0, 194, 203, 0.2);
 }
 
+.msg-meta-pill.pollinations {
+    color: hsl(325, 100%, 70%);
+    background-color: rgba(236, 72, 153, 0.1);
+    border-color: rgba(236, 72, 153, 0.2);
+}
+
 .msg-meta-pill.latency {
     color: var(--text-muted);
     font-family: 'JetBrains Mono', monospace;

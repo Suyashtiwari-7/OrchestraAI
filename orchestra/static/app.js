@@ -272,7 +272,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 "cerebras": "🟣",
                 "sambanova": "🌋",
                 "mistral": "🌪️",
-                "cohere": "🌿"
+                "cohere": "🌿",
+                "pollinations": "🎨"
             };
             const providerEmoji = providerEmojiMap[providerClass] || "🟣";
             

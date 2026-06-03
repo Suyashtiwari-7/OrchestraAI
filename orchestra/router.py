@@ -259,8 +259,7 @@ class ModelRouter:
     def route_image(self, prompt: str) -> tuple[ImageResult, RoutingDecision]:
         """
         Route an image generation request.
-
-        Currently only Gemini/Imagen supports free image generation.
+        Attempts Gemini first, and falls back to Pollinations.ai (Flux) for free unlimited generation.
 
         Args:
             prompt: Text description of the image to generate.
@@ -275,29 +274,50 @@ class ModelRouter:
             task_type=TaskType.IMAGE_GENERATION,
             primary_model=primary_config.display_name,
             primary_provider=primary_config.provider.value,
-            fallback_model=primary_config.display_name,
-            fallback_provider=primary_config.provider.value,
+            fallback_model="Flux (Pollinations.ai)",
+            fallback_provider="pollinations",
             classification_confidence=1.0,
             classification_reasoning="Image generation request.",
         )
 
+        # Attempt 1: Gemini (Imagen)
         gemini = self._providers.get(ProviderName.GEMINI)
-        if not gemini:
-            raise ProviderError(
-                "Router",
-                "Image generation requires Gemini, but it's not configured.",
-            )
+        if gemini and api_keys.validate().get(ProviderName.GEMINI):
+            try:
+                result = gemini.generate_image(
+                    prompt=prompt,
+                    model_id=primary_config.model_id,
+                )
+                decision.model_actually_used = primary_config.display_name
+                decision.provider_actually_used = primary_config.provider.value
+                return result, decision
+            except Exception as e:
+                console.print(f"  [yellow][!] Gemini image generation failed: {e}. Falling back to Pollinations.ai...[/yellow]")
 
+        # Attempt 2: Pollinations.ai (Free Fallback)
         try:
-            result = gemini.generate_image(
-                prompt=prompt,
-                model_id=primary_config.model_id,
-            )
-            decision.model_actually_used = primary_config.display_name
-            decision.provider_actually_used = primary_config.provider.value
-            return result, decision
-        except Exception as e:
-            raise ProviderError("Router", f"Image generation failed: {e}")
+            import urllib.parse
+            import httpx
+            encoded_prompt = urllib.parse.quote(prompt)
+            url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&private=true"
+            
+            response = httpx.get(url, timeout=30.0)
+            if response.status_code == 200:
+                result = ImageResult(
+                    image_data=response.content,
+                    mime_type="image/jpeg",
+                    model_used="Flux (Pollinations.ai)",
+                    provider="pollinations",
+                    prompt=prompt,
+                )
+                decision.used_fallback = True
+                decision.model_actually_used = "Flux (Pollinations.ai)"
+                decision.provider_actually_used = "pollinations"
+                return result, decision
+            else:
+                raise ProviderError("Pollinations", f"HTTP {response.status_code} response.")
+        except Exception as pe:
+            raise ProviderError("Router", f"Image generation failed on all providers. Details: {pe}")
 
     def _execute_text(
         self,
