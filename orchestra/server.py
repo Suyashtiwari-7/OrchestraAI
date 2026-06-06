@@ -35,9 +35,12 @@ from .tools.image_saver import save_image
 from .tools.system_executor import execute_system_command
 from .tools.web_search import execute_web_search
 from .tools.document_reader import gather_referenced_documents
+from .tools.codebase_search import execute_codebase_search
+from .tools.code_sandbox import execute_python_sandbox
+import base64
 
 SYSTEM_COMMAND_PROMPT = """You are a system command interpreter for OrchestraAI.
-Your job is to parse the user's intent to open a URL/website, launch a local application, or run a terminal command, and return a strict JSON block.
+Your job is to parse the user's intent to open a URL/website, launch a local application, run a terminal command, or run a Python script, and return a strict JSON block.
 
 Supported Browsers:
 - "brave": Brave Browser
@@ -53,13 +56,16 @@ Supported Apps:
 Supported Terminal Commands:
 - Any developer utility commands like "git status", "git diff", "dir", "ipconfig", "ping", "pip list", "pytest", "python --version", etc.
 
+Supported Python Execution:
+- Any custom Python scripts or snippets. The action should be "run_python", and the target must contain the entire Python script/code block itself.
+
 Response Format:
 You MUST respond with a single JSON object. No markdown wrapping, no code blocks, no ```json formatting, no other explanation or text.
 
 JSON Structure:
 {
-  "action": "open_browser" | "launch_app" | "run_terminal" | "invalid",
-  "target": "<url_or_app_name_or_command_string>",
+  "action": "open_browser" | "launch_app" | "run_terminal" | "run_python" | "invalid",
+  "target": "<url_or_app_name_or_command_string_or_python_code>",
   "browser": "brave" | "chrome" | "edge" | "default" | null,
   "reasoning": "<brief explanation of the extraction>"
 }
@@ -73,6 +79,9 @@ Output: {"action": "launch_app", "target": "notepad", "browser": null, "reasonin
 
 3. Input: "run git status"
 Output: {"action": "run_terminal", "target": "git status", "browser": null, "reasoning": "Check git repository status"}
+
+4. Input: "execute python code: print('Hello from sandbox!')"
+Output: {"action": "run_python", "target": "print('Hello from sandbox!')", "browser": null, "reasoning": "Run print statement in python sandbox"}
 """
 
 # Set up logging
@@ -107,6 +116,9 @@ class ChatRequest(BaseModel):
 
 class ExecuteCommandRequest(BaseModel):
     command: str
+
+class ExecuteSandboxRequest(BaseModel):
+    code: str
 
 class ChatResponse(BaseModel):
     success: bool
@@ -250,6 +262,40 @@ def execute_terminal_command(request: ExecuteCommandRequest):
             "formatted_output": f"❌ **Command failed to run**: {str(e)}"
         }
 
+@app.get("/api/codebase/search")
+def search_codebase(q: str, limit: int = 5):
+    """Search the local codebase using hybrid vector/keyword search."""
+    results = execute_codebase_search(q, limit=limit)
+    return {"results": results}
+
+@app.post("/api/sandbox/execute")
+def execute_sandbox(request: ExecuteSandboxRequest):
+    """Run Python code inside the local sandbox subprocess."""
+    code = request.code.strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Code cannot be empty.")
+    res = execute_python_sandbox(code)
+    
+    success = res.get("success", False)
+    output = res.get("output", "")
+    response_text = f"🐍 **Python Sandbox Output**:\n\n```\n{output}\n```"
+    
+    # Add to history
+    memory.add_assistant_message(
+        content=response_text,
+        model_used="Python Sandbox",
+        provider="localhost",
+        task_type="system_command"
+    )
+    
+    return {
+        "success": success,
+        "output": output,
+        "stdout": res.get("stdout", ""),
+        "stderr": res.get("stderr", ""),
+        "formatted_output": response_text
+    }
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     """Classify and route the user prompt, invoking fallbacks & tools as needed."""
@@ -302,6 +348,52 @@ def chat(request: ChatRequest):
             f"Please refer to the above file contents when answering the following prompt:\n"
             f"{clean_input}"
         )
+
+    # 1.6 Scan for codebase RAG search requests (explicit slash commands or auto-detected keywords)
+    is_rag_search = False
+    search_query = clean_input
+    
+    if lower_input.startswith("/rag ") or lower_input.startswith("/searchcode "):
+        is_rag_search = True
+        if lower_input.startswith("/rag "):
+            search_query = clean_input[5:].strip()
+        else:
+            search_query = clean_input[12:].strip()
+    else:
+        # Auto-detect general queries about project structure
+        codebase_keywords = [
+            "explain the codebase", "explain the project", "explain this project",
+            "project structure", "whole project", "codebase structure", 
+            "explain codebase", "search codebase for", "search code for"
+        ]
+        is_rag_search = any(k in lower_input for k in codebase_keywords)
+        
+    if is_rag_search:
+        search_res = execute_codebase_search(search_query, limit=4)
+        if search_res:
+            context_parts = []
+            for r in search_res:
+                context_parts.append(
+                    f"--- File: {r['rel_path']} (Similarity Score: {r['score']}, Match: {r['type'].upper()}) ---\n"
+                    f"{r['content']}\n"
+                    f"--- End File: {r['rel_path']} ---"
+                )
+            combined_context = "\n\n".join(context_parts)
+            
+            clean_input = (
+                f"The user is asking a question about the project codebase. Here is the relevant code context retrieved from search:\n\n"
+                f"{combined_context}\n\n"
+                f"Please synthesize this codebase context to answer the user query accurately:\n"
+                f"{search_query}"
+            )
+            # Override task type to CODE_GENERATION for proper codestral routing if not overridden by provider
+            if not provider_override:
+                classification = ClassificationResult(
+                    task_type=TaskType.CODE_GENERATION,
+                    confidence=1.0,
+                    reasoning="Local Codebase RAG context injected",
+                    raw_input=clean_input,
+                )
 
     # 2. Classify task (with potential provider override config mapping)
     if provider_override:
@@ -462,6 +554,9 @@ def chat(request: ChatRequest):
             if exec_res.get("success"):
                 if exec_res.get("action") == "run_terminal":
                     response_text = f"PENDING_TERMINAL_COMMAND:{exec_res.get('command')}:{exec_res.get('reasoning')}"
+                elif exec_res.get("action") == "run_python":
+                    encoded_code = base64.b64encode(exec_res.get('command').encode('utf-8')).decode('utf-8')
+                    response_text = f"PENDING_SANDBOX_CODE:{encoded_code}:{exec_res.get('reasoning')}"
                 else:
                     response_text = f"💻 **System Command Executed Successfully**\n\n* **Reasoning**: {exec_res.get('reasoning')}\n* **Details**: {exec_res.get('details')}"
                 

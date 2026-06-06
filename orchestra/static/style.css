@@ -1214,6 +1214,14 @@ button {
     color: hsl(355, 100%, 75%);
 }
 
+.terminal-card.sandbox-card {
+    border-left: 4px solid var(--accent-green);
+}
+
+.sandbox-code-block {
+    color: hsl(120, 75%, 70%) !important;
+}
+
 .terminal-actions {
     display: flex;
     gap: 10px;
@@ -1232,6 +1240,16 @@ button {
     background-color: rgba(217, 70, 239, 0.15);
     color: var(--accent-magenta);
     border: 1px solid rgba(217, 70, 239, 0.3);
+}
+
+.terminal-btn.approve.sandbox-btn {
+    background-color: rgba(16, 185, 129, 0.12);
+    color: var(--accent-green);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.terminal-btn.approve.sandbox-btn:hover:not(:disabled) {
+    background-color: rgba(16, 185, 129, 0.22);
 }
 
 .terminal-btn.approve:hover:not(:disabled) {

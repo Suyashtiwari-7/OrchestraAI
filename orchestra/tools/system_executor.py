@@ -165,6 +165,16 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
                 "details": f"Needs approval to execute command: '{target}'"
             }
 
+        elif action == "run_python":
+            # Return status indicating Python execution requires manual verification
+            return {
+                "success": True,
+                "action": "run_python",
+                "command": target,
+                "reasoning": reasoning,
+                "details": f"Needs approval to execute Python script in sandbox."
+            }
+
         else:
             return {
                 "success": False,

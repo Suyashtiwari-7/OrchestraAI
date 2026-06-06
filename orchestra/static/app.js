@@ -261,6 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
         let toolsHTML = "";
         
         let isTerminalCommand = false;
+        let isSandboxCode = false;
         let commandStr = "";
         let commandReasoning = "";
         
@@ -268,6 +269,15 @@ document.addEventListener("DOMContentLoaded", () => {
             isTerminalCommand = true;
             const parts = text.split(":");
             commandStr = parts[1];
+            commandReasoning = parts.slice(2).join(":");
+        } else if (role === "assistant" && text.startsWith("PENDING_SANDBOX_CODE:")) {
+            isSandboxCode = true;
+            const parts = text.split(":");
+            try {
+                commandStr = atob(parts[1]); // decode base64
+            } catch (err) {
+                commandStr = parts[1];
+            }
             commandReasoning = parts.slice(2).join(":");
         }
         
@@ -348,6 +358,25 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div class="terminal-actions">
                         <button class="terminal-btn approve" onclick="confirmTerminalCommand(this, '${commandStr}')">Run Command</button>
                         <button class="terminal-btn reject" onclick="rejectTerminalCommand(this)">Reject</button>
+                    </div>
+                </div>
+            `;
+        } else if (isSandboxCode) {
+            const escapedCode = commandStr.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            parsedContent = `
+                <div class="terminal-card sandbox-card">
+                    <div class="terminal-title">
+                        <span>🐍 Pending Python Sandbox Execution</span>
+                    </div>
+                    <div class="terminal-reasoning">
+                        <strong>Reasoning:</strong> ${commandReasoning}
+                    </div>
+                    <div class="terminal-cmd-block sandbox-code-block">
+                        <pre><code>${escapedCode}</code></pre>
+                    </div>
+                    <div class="terminal-actions">
+                        <button class="terminal-btn approve sandbox-btn" onclick="confirmSandboxCommand(this)">Run Python Script</button>
+                        <button class="terminal-btn reject" onclick="rejectSandboxCommand(this)">Reject</button>
                     </div>
                 </div>
             `;
@@ -638,5 +667,58 @@ document.addEventListener("DOMContentLoaded", () => {
         button.disabled = true;
         button.previousElementSibling.disabled = true;
         button.parentNode.innerHTML = `<span style="color:var(--text-disabled)">✗ Command rejected by user</span>`;
+    };
+
+    window.confirmSandboxCommand = async (button) => {
+        const card = button.closest(".sandbox-card");
+        const code = card.querySelector(".sandbox-code-block pre code").innerText;
+        
+        button.disabled = true;
+        button.innerText = "Executing...";
+        button.nextElementSibling.disabled = true;
+        
+        const mascot = document.getElementById("robot-mascot");
+        mascot.className = "robot-mascot listening";
+        
+        try {
+            const response = await fetch("/api/sandbox/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code })
+            });
+            
+            const data = await response.json();
+            const actionsDiv = button.parentNode;
+            
+            if (data.success) {
+                actionsDiv.innerHTML = `<span style="color:var(--accent-green)">✓ Executed successfully</span>`;
+                mascot.className = "robot-mascot success";
+                setTimeout(() => mascot.className = "robot-mascot", 2000);
+            } else {
+                actionsDiv.innerHTML = `<span style="color:red">✗ Execution failed</span>`;
+                mascot.className = "robot-mascot error";
+                setTimeout(() => mascot.className = "robot-mascot", 2000);
+            }
+            
+            appendMessageBubble("assistant", data.formatted_output, {
+                task_type: "system_command",
+                model_used: "Python Sandbox",
+                provider_used: "localhost",
+                latency_ms: 0,
+                used_fallback: false
+            }, true);
+            
+        } catch (error) {
+            button.innerText = "Error";
+            console.error(error);
+            mascot.className = "robot-mascot error";
+            setTimeout(() => mascot.className = "robot-mascot", 2000);
+        }
+    };
+
+    window.rejectSandboxCommand = (button) => {
+        button.disabled = true;
+        button.previousElementSibling.disabled = true;
+        button.parentNode.innerHTML = `<span style="color:var(--text-disabled)">✗ Execution rejected by user</span>`;
     };
 });
