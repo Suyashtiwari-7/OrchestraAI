@@ -8,6 +8,18 @@ Allows running either the CLI interface or the API server:
 
 import sys
 
+# Reconfigure stdout/stderr to UTF-8 to prevent encoding crashes on Windows console when printing emojis
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 def main_runner():
     # Check if server flag is present
     if "--server" in sys.argv or "-s" in sys.argv:

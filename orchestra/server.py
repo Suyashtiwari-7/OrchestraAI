@@ -6,8 +6,21 @@ via a clean HTTP API. Serves static files for the responsive Web UI.
 """
 
 import time
+import sys
 import socket
 import logging
+
+# Reconfigure stdout/stderr to UTF-8 to prevent encoding crashes on Windows console when printing emojis
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
@@ -28,6 +41,7 @@ from .config import (
 from .classifier import TaskClassifier, ClassificationResult
 from .router import ModelRouter, RoutingDecision
 from .memory.session_memory import SessionMemory
+from .memory.user_profile import UserProfileMemory
 from .providers.base import ProviderError
 from .tools.file_writer import process_response_for_files
 from .tools.web_scraper import extract_url, scrape_url, format_scraped_content
@@ -40,48 +54,52 @@ from .tools.code_sandbox import execute_python_sandbox
 import base64
 
 SYSTEM_COMMAND_PROMPT = """You are a system command interpreter for OrchestraAI.
-Your job is to parse the user's intent to open a URL/website, launch a local application, run a terminal command, or run a Python script, and return a strict JSON block.
+Your job is to parse the user's intent to perform a local action (open browser, launch app, run terminal, run Python script, email operations, file system tasks, system settings, lock, screenshot, and info) and return a strict JSON block.
 
-Supported Browsers:
-- "brave": Brave Browser
-- "chrome": Google Chrome
-- "edge": Microsoft Edge
-- "default": Default system browser
+Action Types and Parameters:
+1. "open_browser": target (URL). Optional browser: "brave" | "chrome" | "edge" | "default".
+2. "launch_app": target (application name or command line, e.g. "notepad" or "calc" or "C:\\Windows\\notepad.exe").
+3. "run_terminal": target (command to execute in cmd).
+4. "run_python": target (Python code snippet to execute).
+5. "draft_email" / "send_email": target (email address if specified), email_to (recipient), email_subject (subject line), email_body (body).
+6. "read_inbox": email_index (number of messages to read, default 5).
+7. "reply_email": email_index (index of message to reply to), email_body (reply body).
+8. "file_create": target (filepath), file_content (content).
+9. "file_move": target (source path), file_dest (destination path).
+10. "file_rename": target (file path), file_new_name (new file name).
+11. "file_search": target (query term), file_dest (optional root directory path to search).
+12. "file_delete": target (filepath to delete).
+13. "file_read": target (filepath to read).
+14. "system_volume": level (0-100 or null to query).
+15. "system_brightness": level (0-100 or null to query).
+16. "system_lock": no parameters.
+17. "system_screenshot": no parameters.
+18. "system_info": no parameters.
 
-Supported Apps:
-- "notepad": Windows Notepad
-- "calculator": Windows Calculator
-- "explorer": Windows File Explorer
-
-Supported Terminal Commands:
-- Any developer utility commands like "git status", "git diff", "dir", "ipconfig", "ping", "pip list", "pytest", "python --version", etc.
-
-Supported Python Execution:
-- Any custom Python scripts or snippets. The action should be "run_python", and the target must contain the entire Python script/code block itself.
+Parser Priority & Agentic Scripting Rules:
+- **General OS-Level Automation fallback**: For any custom, complex, or arbitrary task that does not fit a built-in action type (such as scheduling a meeting, setting system alerts, playbacks, controlling other apps, searching local files, modifying custom settings), you MUST choose "run_python" or "run_terminal" and generate a complete script/command to perform it.
+- **Outlook Calendar/Meeting Scheduling**: When the user requests to schedule a meeting, event, or calendar item, you MUST choose "run_python" and write a script that attempts to automate Outlook Calendar using `win32com.client` (AppointmentItem type 1), with a fallback to generating and opening a local `.ics` file (using the standard iCalendar structure) if Outlook COM is unavailable.
+- **Local Reminders/Timers**: When asked to set a reminder or timer (e.g. "remind me to stand up in 5 minutes"), you MUST choose "run_python" and write a script to schedule a native Windows Task Scheduler entry (via Register-ScheduledTask in PowerShell or Task Scheduler COM) that triggers a PowerShell graphical notification box showing your custom message at the designated target datetime.
+- **App Automation/Controls**: When asked to play music or search inside a specific app (e.g. Spotify, YouTube), write a script or command to open the browser search URL, or trigger the app's protocol scheme (e.g. `start spotify:search:jazz`).
 
 Response Format:
 You MUST respond with a single JSON object. No markdown wrapping, no code blocks, no ```json formatting, no other explanation or text.
 
 JSON Structure:
 {
-  "action": "open_browser" | "launch_app" | "run_terminal" | "run_python" | "invalid",
-  "target": "<url_or_app_name_or_command_string_or_python_code>",
+  "action": "<action_type>",
+  "target": "<target_value_or_code_or_command>",
   "browser": "brave" | "chrome" | "edge" | "default" | null,
-  "reasoning": "<brief explanation of the extraction>"
+  "reasoning": "<brief explanation of the extraction>",
+  "email_to": "<recipient_email_or_null>",
+  "email_subject": "<subject_or_null>",
+  "email_body": "<body_or_null>",
+  "email_index": <int_or_null>,
+  "file_content": "<file_content_or_null>",
+  "file_dest": "<destination_path_or_null>",
+  "file_new_name": "<new_name_or_null>",
+  "level": <int_or_null>
 }
-
-Examples:
-1. Input: "open whatsapp in brave browser"
-Output: {"action": "open_browser", "target": "https://web.whatsapp.com", "browser": "brave", "reasoning": "Open WhatsApp Web in Brave Browser"}
-
-2. Input: "open notepad"
-Output: {"action": "launch_app", "target": "notepad", "browser": null, "reasoning": "Open local Notepad application"}
-
-3. Input: "run git status"
-Output: {"action": "run_terminal", "target": "git status", "browser": null, "reasoning": "Check git repository status"}
-
-4. Input: "execute python code: print('Hello from sandbox!')"
-Output: {"action": "run_python", "target": "print('Hello from sandbox!')", "browser": null, "reasoning": "Run print statement in python sandbox"}
 """
 
 # Set up logging
@@ -92,6 +110,7 @@ logger = logging.getLogger("orchestra.server")
 classifier = TaskClassifier()
 router = ModelRouter()
 memory = SessionMemory()
+profile_memory = UserProfileMemory()
 
 app = FastAPI(
     title="OrchestraAI Server",
@@ -120,6 +139,69 @@ class ExecuteCommandRequest(BaseModel):
 class ExecuteSandboxRequest(BaseModel):
     code: str
 
+class InstallAppRequest(BaseModel):
+    app_id: str
+
+
+class EmailDraftRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+    cc: Optional[str] = ""
+    bcc: Optional[str] = ""
+
+class EmailSendRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+    cc: Optional[str] = ""
+    bcc: Optional[str] = ""
+    smtp_server: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_email: Optional[str] = None
+    smtp_password: Optional[str] = None
+
+class EmailReplyRequest(BaseModel):
+    index: int
+    reply_body: str
+    reply_all: Optional[bool] = False
+
+class FileCreateRequest(BaseModel):
+    path: str
+    content: Optional[str] = ""
+
+class FileMoveRequest(BaseModel):
+    source: str
+    destination: str
+
+class FileRenameRequest(BaseModel):
+    path: str
+    new_name: str
+
+class FileDeleteRequest(BaseModel):
+    path: str
+
+class VolumeSetRequest(BaseModel):
+    level: int
+
+class BrightnessSetRequest(BaseModel):
+    level: int
+
+class InstallAppRequest(BaseModel):
+    app_name: str
+
+class MeetingScheduleRequest(BaseModel):
+    subject: str
+    date: str
+    time: str
+    duration: int = 60
+    body: str = ""
+
+class ReminderSetRequest(BaseModel):
+    message: str
+    date: str
+    time: str
+
 class ChatResponse(BaseModel):
     success: bool
     content: str
@@ -139,7 +221,9 @@ class ChatResponse(BaseModel):
 def get_status():
     """Check API key configurations and provider health."""
     key_status = api_keys.validate()
-    health_status = router.health_check_all()
+    # Skip health_check_all() — it makes real API calls to all providers
+    # which blocks page load for 30-60s when providers are rate-limited or dead.
+    # Instead, report status based on API key configuration.
     
     providers = []
     display_names = {
@@ -149,13 +233,16 @@ def get_status():
         "sambanova": "SambaNova",
         "mistral": "Mistral AI",
         "cohere": "Cohere",
+        "huggingface": "Hugging Face",
+        "ollama": "Local Ollama",
     }
     for provider in ProviderName:
+        is_configured = key_status.get(provider, False)
         providers.append({
             "name": provider.value,
             "display_name": display_names.get(provider.value, provider.value.capitalize()),
-            "configured": key_status.get(provider, False),
-            "healthy": health_status.get(provider.value, False),
+            "configured": is_configured,
+            "healthy": is_configured,  # Assume healthy if configured; failures show on actual use
         })
         
     return {
@@ -203,6 +290,153 @@ def clear_history():
     """Clear conversation history."""
     memory.clear()
     return {"success": True, "message": "Conversation history cleared."}
+
+@app.post("/api/email/draft")
+def api_draft_email(req: EmailDraftRequest):
+    from .tools.email_handler import draft_email
+    res = draft_email(req.to, req.subject, req.body, req.cc, req.bcc)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.post("/api/email/send")
+def api_send_email(req: EmailSendRequest):
+    from .tools.email_handler import send_email
+    res = send_email(
+        req.to, req.subject, req.body, req.cc, req.bcc,
+        smtp_server=req.smtp_server,
+        smtp_port=req.smtp_port,
+        smtp_email=req.smtp_email,
+        smtp_password=req.smtp_password
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.get("/api/email/inbox")
+def api_read_inbox(count: int = 5):
+    from .tools.email_handler import read_inbox
+    return read_inbox(count)
+
+@app.post("/api/email/reply")
+def api_reply_email(req: EmailReplyRequest):
+    from .tools.email_handler import reply_to_email
+    res = reply_to_email(req.index, req.reply_body, req.reply_all)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.post("/api/calendar/schedule")
+def api_schedule_meeting(req: MeetingScheduleRequest):
+    from .tools.system_executor import schedule_meeting_handler
+    res = schedule_meeting_handler(req.subject, req.date, req.time, req.duration, req.body)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.post("/api/calendar/reminder")
+def api_set_reminder(req: ReminderSetRequest):
+    from .tools.system_executor import set_reminder_handler
+    res = set_reminder_handler(req.message, req.date, req.time)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.get("/api/system/check_app")
+def api_check_app(app_name: str):
+    from .tools.system_executor import check_app_installation_status
+    return check_app_installation_status(app_name)
+
+@app.post("/api/system/install_app")
+def api_install_app(req: InstallAppRequest):
+    from .tools.system_executor import winget_install_app
+    res = winget_install_app(req.app_id)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+
+@app.post("/api/files/create")
+def api_create_file(req: FileCreateRequest):
+    from .tools.file_manager import create_file
+    res = create_file(req.path, req.content)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.get("/api/files/search")
+def api_search_files(query: str, directory: Optional[str] = None):
+    from .tools.file_manager import search_files
+    return search_files(query, directory)
+
+@app.post("/api/files/delete")
+def api_delete_file(req: FileDeleteRequest):
+    from .tools.file_manager import delete_file
+    res = delete_file(req.path)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.post("/api/system/volume")
+def api_set_volume(req: VolumeSetRequest):
+    from .tools.system_control import set_volume
+    res = set_volume(req.level)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.get("/api/system/volume")
+def api_get_volume():
+    from .tools.system_control import get_volume
+    res = get_volume()
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.post("/api/system/brightness")
+def api_set_brightness(req: BrightnessSetRequest):
+    from .tools.system_control import set_brightness
+    res = set_brightness(req.level)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.get("/api/system/brightness")
+def api_get_brightness():
+    from .tools.system_control import get_brightness
+    res = get_brightness()
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.post("/api/system/lock")
+def api_lock_screen():
+    from .tools.system_control import lock_screen
+    res = lock_screen()
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    return res
+
+@app.post("/api/system/screenshot")
+def api_take_screenshot():
+    from .tools.system_control import take_screenshot
+    res = take_screenshot()
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error"))
+    filepath = Path(res.get("path"))
+    filename = filepath.name
+    res["image_url"] = f"/output/images/{filename}"
+    return res
+
+@app.get("/api/system/info")
+def api_get_system_info():
+    from .tools.system_control import get_system_info
+    return get_system_info()
+
+@app.post("/api/system/install_app")
+def api_install_app(req: InstallAppRequest):
+    from .tools.system_executor import install_application
+    return install_application(req.app_name)
 
 @app.post("/api/terminal/execute")
 def execute_terminal_command(request: ExecuteCommandRequest):
@@ -303,6 +537,9 @@ def chat(request: ChatRequest):
     if not user_input:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty.")
 
+    # Scan user prompt for profile memory facts
+    profile_memory.extract_facts(user_input)
+
     start_time = time.time()
     
     # 1. Handle command shortcuts
@@ -330,6 +567,12 @@ def chat(request: ChatRequest):
     elif lower_input.startswith("@cohere "):
         provider_override = "cohere"
         clean_input = user_input[8:].strip()
+    elif lower_input.startswith("@ollama "):
+        provider_override = "ollama"
+        clean_input = user_input[8:].strip()
+
+    # Save user input before context injection for classification
+    classification_prompt = clean_input
 
     # 1.5 Scan for local document references in prompt and inject content as context
     referenced_docs = gather_referenced_documents(clean_input, settings.project_root)
@@ -398,7 +641,7 @@ def chat(request: ChatRequest):
     # 2. Classify task (with potential provider override config mapping)
     if provider_override:
         # Determine appropriate task type based on keyword, otherwise generic
-        if "write code" in clean_input.lower() or "function" in clean_input.lower():
+        if "write code" in classification_prompt.lower() or "function" in classification_prompt.lower():
             t_type = TaskType.CODE_GENERATION
         else:
             t_type = TaskType.GENERAL
@@ -407,14 +650,14 @@ def chat(request: ChatRequest):
             task_type=t_type,
             confidence=1.0,
             reasoning=f"Forced routing override to provider: {provider_override}",
-            raw_input=clean_input,
+            raw_input=classification_prompt,
         )
     else:
-        classification = classifier.classify(clean_input)
+        classification = classifier.classify(classification_prompt)
 
     # 3. Handle Special Web Scrape Task
     if classification.task_type == TaskType.WEB_SCRAPE or lower_input.startswith("/scrape "):
-        url = extract_url(clean_input)
+        url = extract_url(classification_prompt)
         if not url:
             return ChatResponse(
                 success=False,
@@ -541,10 +784,14 @@ def chat(request: ChatRequest):
         memory.add_user_message(f"/system {cmd_prompt}")
 
         try:
+            from datetime import datetime
+            now_str = datetime.now().strftime("%Y-%m-%d %I:%M %p (%A)")
+            dynamic_system_prompt = SYSTEM_COMMAND_PROMPT + f"\n\nContext: The current local time on the user's machine is: {now_str}."
+
             result, decision = router.route_text(
                 prompt=f"Parse this system action request:\n\n{cmd_prompt}",
                 classification=classification,
-                system_prompt=SYSTEM_COMMAND_PROMPT,
+                system_prompt=dynamic_system_prompt,
                 history=None
             )
             
@@ -557,6 +804,26 @@ def chat(request: ChatRequest):
                 elif exec_res.get("action") == "run_python":
                     encoded_code = base64.b64encode(exec_res.get('command').encode('utf-8')).decode('utf-8')
                     response_text = f"PENDING_SANDBOX_CODE:{encoded_code}:{exec_res.get('reasoning')}"
+                elif exec_res.get("action") == "draft_email":
+                    to_s = exec_res.get("to")
+                    subj_s = exec_res.get("subject")
+                    body_s = exec_res.get("body")
+                    response_text = f"PENDING_EMAIL_SEND:{to_s}|{subj_s}|{body_s}"
+                elif exec_res.get("action") == "schedule_meeting":
+                    subj = exec_res.get("subject") or "Meeting"
+                    dt = exec_res.get("date") or ""
+                    tm = exec_res.get("time") or ""
+                    dur = exec_res.get("duration") or 60
+                    bdy = exec_res.get("body") or ""
+                    response_text = f"PENDING_MEETING_SCHEDULE:{subj}|{dt}|{tm}|{dur}|{bdy}"
+                elif exec_res.get("action") == "set_reminder":
+                    msg = exec_res.get("message") or ""
+                    dt = exec_res.get("date") or ""
+                    tm = exec_res.get("time") or ""
+                    response_text = f"PENDING_REMINDER_SET:{msg}|{dt}|{tm}"
+                elif exec_res.get("action") == "file_delete":
+                    filepath = exec_res.get("path")
+                    response_text = f"PENDING_FILE_DELETE:{filepath}"
                 else:
                     response_text = f"💻 **System Command Executed Successfully**\n\n* **Reasoning**: {exec_res.get('reasoning')}\n* **Details**: {exec_res.get('details')}"
                 
@@ -579,27 +846,54 @@ def chat(request: ChatRequest):
                     used_fallback=decision.used_fallback,
                 )
             else:
-                error_msg = exec_res.get("error", "Unknown error during command execution.")
-                response_text = f"❌ **System Command Failed**\n\n* **Error**: {error_msg}"
-                
-                memory.add_assistant_message(
-                    content=response_text,
-                    model_used=decision.model_actually_used,
-                    provider=decision.provider_actually_used,
-                    task_type="system_command",
-                )
-                
-                return ChatResponse(
-                    success=False,
-                    content=response_text,
-                    task_type=TaskType.SYSTEM_COMMAND.value,
-                    classification_confidence=decision.classification_confidence,
-                    classification_reasoning=decision.classification_reasoning,
-                    model_used=decision.model_actually_used,
-                    provider_used=decision.provider_actually_used,
-                    latency_ms=latency,
-                    used_fallback=decision.used_fallback,
-                )
+                if exec_res.get("app_not_found"):
+                    app_to_install = exec_res.get("app_name")
+                    orig_action = exec_res.get("action") or classification.task_type.value
+                    import base64
+                    import json
+                    orig_data = base64.b64encode(json.dumps(exec_res).encode('utf-8')).decode('utf-8')
+                    response_text = f"PENDING_APP_INSTALL:{app_to_install}:{orig_action}:{orig_data}"
+                    
+                    memory.add_assistant_message(
+                        content=response_text,
+                        model_used=decision.model_actually_used,
+                        provider=decision.provider_actually_used,
+                        task_type="system_command",
+                    )
+                    
+                    return ChatResponse(
+                        success=True,
+                        content=response_text,
+                        task_type=TaskType.SYSTEM_COMMAND.value,
+                        classification_confidence=decision.classification_confidence,
+                        classification_reasoning=decision.classification_reasoning,
+                        model_used=decision.model_actually_used,
+                        provider_used=decision.provider_actually_used,
+                        latency_ms=latency,
+                        used_fallback=decision.used_fallback,
+                    )
+                else:
+                    error_msg = exec_res.get("error", "Unknown error during command execution.")
+                    response_text = f"❌ **System Command Failed**\n\n* **Error**: {error_msg}"
+                    
+                    memory.add_assistant_message(
+                        content=response_text,
+                        model_used=decision.model_actually_used,
+                        provider=decision.provider_actually_used,
+                        task_type="system_command",
+                    )
+                    
+                    return ChatResponse(
+                        success=False,
+                        content=response_text,
+                        task_type=TaskType.SYSTEM_COMMAND.value,
+                        classification_confidence=decision.classification_confidence,
+                        classification_reasoning=decision.classification_reasoning,
+                        model_used=decision.model_actually_used,
+                        provider_used=decision.provider_actually_used,
+                        latency_ms=latency,
+                        used_fallback=decision.used_fallback,
+                    )
 
         except Exception as e:
             logger.error(f"System command execution failed: {e}")
@@ -617,7 +911,7 @@ def chat(request: ChatRequest):
             )
 
     # 5. Route normal text chat
-    memory.add_user_message(clean_input)
+    memory.add_user_message(classification_prompt)
     
     # Apply temporary override to routing table if manually specified
     if provider_override:
@@ -637,10 +931,15 @@ def chat(request: ChatRequest):
             ROUTING_TABLE[TaskType.GENERAL].fallback = matching_model_key
 
     try:
+        # Build the dynamic system prompt injecting local user facts/preferences
+        base_system_prompt = f"You are {settings.app_name}, an intelligent AI assistant powered by a multi-model routing system."
+        sys_context = profile_memory.get_system_context()
+        sys_prompt = base_system_prompt + sys_context if sys_context else base_system_prompt
+
         result, decision = router.route_text(
             prompt=clean_input,
             classification=classification,
-            system_prompt=None,  # Config fallback matches system prompt
+            system_prompt=sys_prompt,
             history=memory.get_history()[:-1],
         )
         
@@ -705,7 +1004,10 @@ def get_local_ip() -> str:
 # --- Static File Serving ---
 
 # Static directories setup
-static_dir = Path(__file__).resolve().parent / "static"
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    static_dir = Path(sys._MEIPASS) / "orchestra" / "static"
+else:
+    static_dir = Path(__file__).resolve().parent / "static"
 output_images_dir = settings.output_images_dir
 
 # Create static directories if they don't exist

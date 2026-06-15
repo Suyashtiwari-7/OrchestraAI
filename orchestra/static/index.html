@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OrchestraAI 🎵 - Smart AI Routing & Work Automation</title>
+    <title>DARKI 🤖 - Your Personal AI Friend</title>
     <!-- Outfit & JetBrains Mono Fonts from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
                 </svg>
             </button>
             <div class="mobile-brand">
-                <span class="music-note">♪</span> OrchestraAI
+                <span class="music-note">🤖</span> DARKI
             </div>
             <button id="clear-chat-mobile" class="icon-btn" title="Clear Chat">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -36,10 +36,10 @@
         <!-- Left Sidebar / Navigation Panel -->
         <aside id="app-sidebar" class="sidebar">
             <div class="sidebar-brand">
-                <span class="logo-icon">🎵</span>
+                <span class="logo-icon">🤖</span>
                 <div>
-                    <h1>OrchestraAI</h1>
-                    <p class="tagline">Work Automation Agent</p>
+                    <h1>DARKI</h1>
+                    <p class="tagline">Personal AI Assistant</p>
                 </div>
             </div>
 
@@ -86,9 +86,9 @@
         <main class="chat-main">
             <!-- Welcome screen when no history exists -->
             <div id="welcome-screen" class="welcome-screen">
-                <div class="welcome-icon">♪</div>
-                <h2>OrchestraAI Controller</h2>
-                <p>Welcome! Type a prompt and our smart router will classify the task and assign it to the most capable free cloud LLM (Gemini, Groq, or Cerebras) automatically.</p>
+                <div class="welcome-icon">🤖</div>
+                <h2>DARKI Assistant</h2>
+                <p>Welcome! Type a prompt and DARKI will classify the task and assign it to the most capable free cloud LLM (Gemini, Groq, Cerebras, or Hugging Face) automatically.</p>
                 <div class="quick-prompts">
                     <div class="quick-prompt-card" data-prompt="Write a Python script to scrape news headlines from a webpage and print them.">
                         <h3>💻 Code Automation</h3>
@@ -131,9 +131,19 @@
                     <button class="override-pill provider-sambanova" data-provider="sambanova">🌋 SambaNova</button>
                     <button class="override-pill provider-mistral" data-provider="mistral">🌪️ Mistral</button>
                     <button class="override-pill provider-cohere" data-provider="cohere">🌿 Cohere</button>
+                    <span class="selector-label" style="margin-left: 12px;">Voice:</span>
+                    <button type="button" class="override-pill" id="voice-toggle-btn" title="Toggle 'Hey DARKI' wake word listening">🎙️ Hey DARKI: OFF</button>
                 </div>
                 <form id="chat-form" class="chat-form">
                     <input type="text" id="user-input" placeholder="Ask anything, scrape a URL, generate an image..." autocomplete="off">
+                    <button type="button" id="mic-btn" class="mic-btn" title="Voice Typing / Wake Word Mode">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                    </button>
                     <button type="submit" class="send-btn" aria-label="Send Prompt">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -146,7 +156,7 @@
     </div>
 
     <!-- Floating Robot Mascot widget -->
-    <div id="robot-mascot" class="robot-mascot" title="Maestro Bot - Quick Commands">
+    <div id="robot-mascot" class="robot-mascot" title="DARKI Bot - Quick Commands">
         <div class="bot-antenna">
             <span class="antenna-light"></span>
         </div>
@@ -167,13 +177,14 @@
     <!-- Mascot Quick Command Window -->
     <div id="mascot-command-window" class="mascot-command-window hidden">
         <div class="mascot-header">
-            <h3>🤖 Maestro Command Overlay</h3>
+            <h3>🤖 DARKI Command Overlay</h3>
             <button id="mascot-close-btn" class="close-btn">&times;</button>
         </div>
         <div class="mascot-body">
-            <p id="mascot-speech" class="mascot-speech">Hello! I am Maestro Bot. Give me a local command or instruction to run!</p>
+            <p id="mascot-speech" class="mascot-speech">Hello! I am DARKI. Give me a local command or instruction to run!</p>
             <div class="mascot-input-row">
                 <input type="text" id="mascot-input" placeholder="e.g. open notepad, run git status..." autocomplete="off">
+                <button type="button" id="mascot-mic-btn" class="mascot-mic-btn" title="Voice Command">🎙️</button>
                 <button id="mascot-submit-btn" class="submit-btn">Run</button>
             </div>
             <div id="mascot-status" class="mascot-status hidden"></div>

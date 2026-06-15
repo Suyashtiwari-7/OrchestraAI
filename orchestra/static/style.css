@@ -1,29 +1,30 @@
 /* OrchestraAI — Design System Stylesheet */
 
 :root {
-    /* Color Palette (HSL System) */
-    --bg-dark: hsl(222, 24%, 6%);
-    --bg-sidebar: hsl(222, 22%, 9%);
-    --bg-panel: hsla(222, 20%, 15%, 0.4);
-    --border-translucent: rgba(255, 255, 255, 0.06);
-    --border-focused: hsla(217, 91%, 60%, 0.5);
+    /* Color Palette (Modern Glassmorphic Dark) */
+    --bg-dark: hsl(225, 30%, 4%);
+    --bg-sidebar: hsla(225, 30%, 8%, 0.75);
+    --bg-panel: hsla(225, 25%, 12%, 0.5);
+    --border-translucent: rgba(255, 255, 255, 0.08);
+    --border-focused: hsla(230, 100%, 65%, 0.6);
     
     --text-primary: hsl(210, 40%, 98%);
-    --text-muted: hsl(215, 20%, 65%);
-    --text-disabled: hsl(215, 10%, 45%);
+    --text-muted: hsl(215, 20%, 70%);
+    --text-disabled: hsl(215, 15%, 50%);
     
-    /* Brand Accent Gradients */
-    --accent-gradient: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(265, 83%, 63%) 100%);
-    --accent-blue: hsl(217, 91%, 60%);
-    --accent-green: hsl(142, 72%, 40%);
-    --accent-magenta: hsl(295, 75%, 55%);
+    /* Brand Accent Gradients (Vibrant Neon) */
+    --accent-gradient: linear-gradient(135deg, hsl(230, 100%, 65%) 0%, hsl(280, 100%, 65%) 100%);
+    --accent-blue: hsl(230, 100%, 65%);
+    --accent-green: hsl(150, 100%, 45%);
+    --accent-magenta: hsl(295, 100%, 60%);
     
     /* Layout Sizes */
     --sidebar-width: 320px;
     --header-height-mobile: 60px;
     
-    /* Transitions */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Transitions & Shadows */
+    --transition-smooth: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 /* Base Reset & Typography */
@@ -36,6 +37,8 @@
 body {
     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--bg-dark);
+    background-image: radial-gradient(circle at top right, hsla(230, 100%, 65%, 0.05) 0%, transparent 40%),
+                      radial-gradient(circle at bottom left, hsla(280, 100%, 65%, 0.05) 0%, transparent 40%);
     color: var(--text-primary);
     overflow: hidden;
     height: 100vh;
@@ -67,6 +70,8 @@ button {
 .sidebar {
     width: var(--sidebar-width);
     background-color: var(--bg-sidebar);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     border-right: 1px solid var(--border-translucent);
     display: flex;
     flex-direction: column;
@@ -74,6 +79,7 @@ button {
     z-index: 100;
     transition: var(--transition-smooth);
     flex-shrink: 0;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
 }
 
 .sidebar-brand {
@@ -361,18 +367,21 @@ button {
 .quick-prompt-card {
     background: var(--bg-panel);
     border: 1px solid var(--border-translucent);
-    backdrop-filter: blur(12px);
-    border-radius: 12px;
-    padding: 18px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 16px;
+    padding: 20px;
     text-align: left;
     transition: var(--transition-smooth);
     cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .quick-prompt-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.15);
-    background-color: rgba(255, 255, 255, 0.04);
+    transform: translateY(-4px) scale(1.02);
+    border-color: var(--accent-blue);
+    background-color: hsla(230, 100%, 65%, 0.05);
+    box-shadow: 0 8px 30px rgba(37, 99, 235, 0.15);
 }
 
 .quick-prompt-card h3 {
@@ -397,6 +406,7 @@ button {
     display: flex;
     flex-direction: column;
     gap: 32px;
+    scroll-behavior: smooth;
 }
 
 .chat-bubble-wrapper {
@@ -405,6 +415,12 @@ button {
     max-width: 800px;
     width: 100%;
     margin: 0 auto;
+    animation: slideInUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes slideInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .chat-bubble-wrapper.user {
@@ -417,26 +433,29 @@ button {
 
 /* Chat bubble card style */
 .chat-bubble {
-    padding: 18px 24px;
-    border-radius: 16px;
-    font-size: 1rem;
+    padding: 20px 26px;
+    border-radius: 20px;
+    font-size: 1.05rem;
     line-height: 1.6;
     max-width: 88%;
+    transition: var(--transition-smooth);
 }
 
 .chat-bubble-wrapper.user .chat-bubble {
     background: var(--accent-gradient);
     color: white;
     border-bottom-right-radius: 4px;
-    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
+    box-shadow: 0 8px 24px hsla(230, 100%, 65%, 0.25);
 }
 
 .chat-bubble-wrapper.assistant .chat-bubble {
     background-color: var(--bg-panel);
     border: 1px solid var(--border-translucent);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     color: var(--text-primary);
     border-top-left-radius: 4px;
+    box-shadow: var(--shadow-glass);
 }
 
 /* Meta Panel on Assistant Responses */
@@ -712,10 +731,10 @@ button {
 
 /* Chat Input Footer Area */
 .chat-input-area {
-    padding: 24px;
+    padding: 24px 32px 32px;
     border-top: 1px solid var(--border-translucent);
-    background-color: var(--bg-dark);
-    max-width: 840px;
+    background: linear-gradient(to top, var(--bg-dark) 60%, transparent);
+    max-width: 860px;
     width: 100%;
     margin: 0 auto;
 }
@@ -799,16 +818,20 @@ button {
     position: relative;
     display: flex;
     align-items: center;
-    background-color: var(--bg-panel);
+    background-color: hsla(225, 25%, 15%, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--border-translucent);
-    border-radius: 14px;
-    padding: 4px;
+    border-radius: 20px;
+    padding: 6px;
     transition: var(--transition-smooth);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .chat-form:focus-within {
-    border-color: var(--border-focused);
-    box-shadow: 0 0 15px rgba(37, 99, 235, 0.15);
+    border-color: var(--accent-blue);
+    box-shadow: 0 8px 32px hsla(230, 100%, 65%, 0.2);
+    transform: translateY(-2px);
 }
 
 .chat-form input {
@@ -817,30 +840,77 @@ button {
     border: none;
     outline: none;
     color: var(--text-primary);
-    padding: 14px 20px;
-    font-size: 0.95rem;
+    padding: 16px 24px;
+    font-size: 1rem;
 }
 
 .chat-form input::placeholder {
     color: var(--text-disabled);
+    font-weight: 300;
 }
 
-.send-btn {
+/* Microphone Buttons & Voice Input Styling */
+.mic-btn, .mascot-mic-btn {
     width: 46px;
     height: 46px;
     border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-translucent);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.mic-btn:hover, .mascot-mic-btn:hover {
+    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.mic-btn.recording, .mascot-mic-btn.recording {
+    background: linear-gradient(135deg, hsl(0, 75%, 50%) 0%, hsl(0, 85%, 60%) 100%);
+    color: white;
+    border-color: rgba(239, 68, 68, 0.4);
+    animation: pulseMic 1.5s infinite alternate;
+}
+
+.mascot-mic-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    margin-right: 8px;
+}
+
+@keyframes pulseMic {
+    0% {
+        box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+    }
+    100% {
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+    }
+}
+
+.send-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
     background: var(--accent-gradient);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: var(--transition-smooth);
-    margin-right: 2px;
+    margin-right: 4px;
+    box-shadow: 0 4px 15px hsla(230, 100%, 65%, 0.3);
 }
 
 .send-btn:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 8px 25px hsla(230, 100%, 65%, 0.5);
 }
 
 /* Animations */

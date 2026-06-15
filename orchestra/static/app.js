@@ -523,7 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Animate bot to listening state
         robotMascot.className = "robot-mascot listening";
-        showLoader("Maestro Bot parsing command...");
+        showLoader("DARKI parsing command...");
 
         try {
             const response = await fetch("/api/chat", {
@@ -721,4 +721,192 @@ document.addEventListener("DOMContentLoaded", () => {
         button.previousElementSibling.disabled = true;
         button.parentNode.innerHTML = `<span style="color:var(--text-disabled)">✗ Execution rejected by user</span>`;
     };
+
+    // --- Speech Recognition & Voice Activation ("Hey DARKI") ---
+    let wakeWordRecognition = null;
+    let isWakeWordListening = false;
+    let manualRecognition = null;
+    let isManualListening = false;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const voiceToggleBtn = document.getElementById("voice-toggle-btn");
+    const micBtn = document.getElementById("mic-btn");
+    const mascotMicBtn = document.getElementById("mascot-mic-btn");
+
+    if (SpeechRecognition) {
+        // 1. Manual Dictation setup
+        manualRecognition = new SpeechRecognition();
+        manualRecognition.continuous = false;
+        manualRecognition.interimResults = false;
+        manualRecognition.lang = 'en-US';
+
+        // 2. Wake-word continuous listening setup
+        wakeWordRecognition = new SpeechRecognition();
+        wakeWordRecognition.continuous = true;
+        wakeWordRecognition.interimResults = true;
+        wakeWordRecognition.lang = 'en-US';
+
+        // Synthesise audio wake chime
+        function playWakeChime() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.15); // G5
+                
+                gain.gain.setValueAtTime(0.08, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start();
+                osc.stop(ctx.currentTime + 0.25);
+            } catch (err) {
+                console.log("AudioContext failed:", err);
+            }
+        }
+
+        // Toggle manual push-to-talk dictation
+        function toggleManualDictation(inputElement, buttonElement) {
+            if (isManualListening) {
+                manualRecognition.stop();
+                return;
+            }
+
+            if (isWakeWordListening) {
+                wakeWordRecognition.stop();
+            }
+
+            buttonElement.classList.add("recording");
+            isManualListening = true;
+
+            manualRecognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                inputElement.value = transcript;
+                inputElement.focus();
+            };
+
+            manualRecognition.onend = () => {
+                buttonElement.classList.remove("recording");
+                isManualListening = false;
+                
+                // Restart wake word background listening if enabled
+                if (isWakeWordListening) {
+                    try { wakeWordRecognition.start(); } catch(e){}
+                }
+            };
+
+            manualRecognition.onerror = (err) => {
+                console.error("Manual STT error:", err.error);
+                buttonElement.classList.remove("recording");
+                isManualListening = false;
+                
+                if (isWakeWordListening) {
+                    try { wakeWordRecognition.start(); } catch(e){}
+                }
+            };
+
+            manualRecognition.start();
+        }
+
+        if (micBtn) {
+            micBtn.addEventListener("click", () => {
+                toggleManualDictation(userInput, micBtn);
+            });
+        }
+
+        if (mascotMicBtn) {
+            mascotMicBtn.addEventListener("click", () => {
+                toggleManualDictation(mascotInput, mascotMicBtn);
+            });
+        }
+
+        // Wake word result parsing
+        wakeWordRecognition.onresult = (event) => {
+            let transcript = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                transcript += event.results[i][0].transcript;
+            }
+            
+            transcript = transcript.toLowerCase().trim();
+            console.log("[Wake Word Monitor]:", transcript);
+
+            const triggers = ["darki", "hey darki", "hi darki", "okay darki", "ok darki", "hey ducky", "hey docky"];
+            let triggered = false;
+            let query = "";
+
+            for (const t of triggers) {
+                if (transcript.includes(t)) {
+                    triggered = true;
+                    const idx = transcript.lastIndexOf(t);
+                    query = transcript.substring(idx + t.length).trim();
+                    break;
+                }
+            }
+
+            // Trigger action if query exists following the wake word
+            if (triggered && query.length > 3) {
+                wakeWordRecognition.stop(); // Stop listening during process
+                playWakeChime();
+                
+                // Wake up Mascot widget
+                const mascot = document.getElementById("robot-mascot");
+                mascot.className = "robot-mascot listening";
+
+                userInput.value = query;
+                
+                // Trigger form submission after brief visual confirmation
+                setTimeout(() => {
+                    chatForm.dispatchEvent(new Event("submit"));
+                }, 800);
+            }
+        };
+
+        wakeWordRecognition.onend = () => {
+            // Restart automatically if toggled ON and manual dictation is not active
+            if (isWakeWordListening && !isManualListening) {
+                try { wakeWordRecognition.start(); } catch(e){}
+            }
+        };
+
+        wakeWordRecognition.onerror = (event) => {
+            if (event.error !== 'no-speech') {
+                console.warn("[Wake Word Engine Error]:", event.error);
+            }
+        };
+
+        // Toggle background "Hey DARKI" wake word listener
+        if (voiceToggleBtn) {
+            voiceToggleBtn.addEventListener("click", () => {
+                if (isWakeWordListening) {
+                    isWakeWordListening = false;
+                    wakeWordRecognition.stop();
+                    voiceToggleBtn.classList.remove("active");
+                    voiceToggleBtn.innerHTML = "🎙️ Hey DARKI: OFF";
+                } else {
+                    isWakeWordListening = true;
+                    voiceToggleBtn.classList.add("active");
+                    voiceToggleBtn.innerHTML = "🎙️ Hey DARKI: ON";
+                    try {
+                        wakeWordRecognition.start();
+                        playWakeChime();
+                    } catch(e) {
+                        console.error("Failed to start wake word engine:", e);
+                    }
+                }
+            });
+        }
+    } else {
+        // Fallback for unsupported browsers
+        if (voiceToggleBtn) voiceToggleBtn.style.display = "none";
+        if (micBtn) micBtn.style.display = "none";
+        if (mascotMicBtn) mascotMicBtn.style.display = "none";
+        console.warn("SpeechRecognition API is not supported in this browser environment.");
+    }
 });

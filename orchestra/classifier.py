@@ -17,6 +17,7 @@ from typing import Optional
 from .config import TaskType, api_keys, settings, MODELS, ProviderName
 from .providers.gemini_provider import GeminiProvider
 from .providers.groq_provider import GroqProvider
+from .providers.ollama_provider import OllamaProvider
 from .providers.base import ProviderError
 
 
@@ -40,7 +41,7 @@ Your job is to analyze the user's input and classify it into EXACTLY ONE task ca
 
 6. **web_scrape** — The user provides a URL and wants its content fetched, scraped, summarized, or analyzed. Look for URLs (http/https links) in the input.
 
-7. **system_command** — The user wants to launch local applications, open specific websites/URLs in specific web browsers, or trigger system actions on their machine. Keywords: "open", "launch", "run", "start" combined with applications (notepad, calculator) or browser preferences ("in brave", "in chrome", "in edge").
+7. **system_command** — The user wants to trigger local actions on their machine, launch apps, schedule meetings/events, set reminders, set timers, control system settings (volume, brightness), perform file operations, or automate tasks (e.g. play music, send emails, schedule tasks). Keywords: "open", "launch", "run", "start", "schedule", "remind", "set volume", "delete file", "play", "send email".
 
 8. **web_search** — The user asks about current events, news, real-time information, weather, live stock/crypto prices, or questions that require searching the internet/live web for the latest info. Keywords: "news", "current", "weather", "latest", "today", "live price", "search for".
 
@@ -49,7 +50,7 @@ Your job is to analyze the user's input and classify it into EXACTLY ONE task ca
 ## Rules:
 - If the input contains a URL (starts with http:// or https://), classify as "web_scrape".
 - If the input explicitly asks to create/generate/draw an image or visual, classify as "image_generation".
-- If the input is asking to open/launch/run/start local applications or websites in browsers, classify as "system_command".
+- If the input is asking to open/launch/run/start local applications, websites, schedule tasks/meetings, set reminders, control system settings, or run shell/Python scripts, classify as "system_command".
 - If the input requires real-time information, current news, weather, live data, or queries starting with "search", classify as "web_search".
 - If unsure between categories, prefer "general".
 - The confidence score should reflect how certain you are (0.0 to 1.0).
@@ -79,7 +80,7 @@ class TaskClassifier:
     """
 
     def __init__(self):
-        """Initialize the classifier with Gemini and Groq clients."""
+        """Initialize the classifier with Gemini, Groq, and Ollama clients."""
         gemini_key = api_keys.get_key(ProviderName.GEMINI)
         if gemini_key:
             self._provider = GeminiProvider(api_key=gemini_key)
@@ -91,6 +92,12 @@ class TaskClassifier:
             self._groq_provider = GroqProvider(api_key=groq_key)
         else:
             self._groq_provider = None
+
+        ollama_host = api_keys.get_key(ProviderName.OLLAMA)
+        if ollama_host:
+            self._ollama_provider = OllamaProvider(host=ollama_host)
+        else:
+            self._ollama_provider = None
 
         self._classifier_model = MODELS[settings.classifier_model].model_id
 
@@ -189,6 +196,7 @@ class TaskClassifier:
             "@sambanova": TaskType.DEEP_REASONING,  # Routes to SambaNova Llama 405B
             "@mistral": TaskType.CODE_GENERATION,    # Routes to Mistral Codestral
             "@cohere": TaskType.WEB_SCRAPE,          # Routes to Cohere Command R+
+            "@ollama": TaskType.GENERAL,             # Routes to Local Ollama
         }
 
         lower = text.lower()
@@ -240,6 +248,20 @@ class TaskClassifier:
                 return self._parse_classification(result.content, text)
             except Exception:
                 # Fall through to default if Groq also fails
+                pass
+
+        if self._ollama_provider:
+            try:
+                result = self._ollama_provider.generate_text(
+                    prompt=f"Classify this user input:\n\n{text}",
+                    model_id=api_keys.ollama_model or "llama3.2",
+                    system_prompt=CLASSIFIER_SYSTEM_PROMPT,
+                    max_tokens=200,
+                    temperature=0.1,
+                )
+                return self._parse_classification(result.content, text)
+            except Exception:
+                # Fall through to default if Ollama also fails
                 pass
 
         return ClassificationResult(

@@ -27,7 +27,7 @@ def extract_file_paths(text: str) -> List[str]:
     ext_pattern = "|".join([ext.replace(".", r"\.") for ext in SUPPORTED_EXTENSIONS])
     pattern = r'(?:[a-zA-Z]:[\\/][^\s<>:|?*]*|[\w\-./\\]+)(?:' + ext_pattern + r')\b'
     
-    matches = re.findall(pattern, text)
+    matches = re.findall(pattern, text, re.IGNORECASE)
     # Clean duplicates and normalize slashes
     cleaned = []
     for m in matches:
@@ -106,7 +106,8 @@ def read_local_file(filepath: Path) -> Dict[str, Any]:
 def gather_referenced_documents(prompt: str, base_dir: Path) -> List[Dict[str, Any]]:
     """
     Find file paths in a prompt, resolve them relative to base_dir,
-    and read their contents.
+    and read their contents. If not found in base_dir, look in common
+    user folders (home, Desktop, Documents, Downloads).
     """
     paths = extract_file_paths(prompt)
     documents = []
@@ -115,8 +116,25 @@ def gather_referenced_documents(prompt: str, base_dir: Path) -> List[Dict[str, A
         # Try as absolute path first
         file_path = Path(path_str)
         if not file_path.is_absolute():
-            # Resolve relative to base_dir
-            file_path = base_dir / path_str
+            # Try resolving relative to base_dir first
+            resolved_path = base_dir / path_str
+            
+            # If not found there, try common user directories
+            if not (resolved_path.exists() and resolved_path.is_file()):
+                potential_paths = [
+                    Path.home() / path_str,
+                    Path.home() / "Desktop" / path_str,
+                    Path.home() / "Documents" / path_str,
+                    Path.home() / "Downloads" / path_str
+                ]
+                for p in potential_paths:
+                    try:
+                        if p.exists() and p.is_file():
+                            resolved_path = p
+                            break
+                    except Exception:
+                        continue
+            file_path = resolved_path
             
         if file_path.exists() and file_path.is_file():
             res = read_local_file(file_path)

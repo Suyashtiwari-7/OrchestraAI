@@ -37,6 +37,8 @@ from .providers.cerebras_provider import CerebrasProvider
 from .providers.sambanova_provider import SambaNovaProvider
 from .providers.mistral_provider import MistralProvider
 from .providers.cohere_provider import CohereProvider
+from .providers.huggingface_provider import HuggingFaceProvider
+from .providers.ollama_provider import OllamaProvider
 
 
 console = Console()
@@ -148,6 +150,25 @@ class ModelRouter:
         else:
             self._providers[ProviderName.COHERE] = None
 
+        # Initialize HuggingFace
+        if key_status.get(ProviderName.HUGGINGFACE):
+            try:
+                self._providers[ProviderName.HUGGINGFACE] = HuggingFaceProvider(
+                    api_token=api_keys.get_key(ProviderName.HUGGINGFACE)
+                )
+            except AuthenticationError:
+                self._providers[ProviderName.HUGGINGFACE] = None
+        else:
+            self._providers[ProviderName.HUGGINGFACE] = None
+
+        # Initialize Ollama
+        if key_status.get(ProviderName.OLLAMA):
+            self._providers[ProviderName.OLLAMA] = OllamaProvider(
+                host=api_keys.get_key(ProviderName.OLLAMA)
+            )
+        else:
+            self._providers[ProviderName.OLLAMA] = None
+
     def get_provider(self, provider_name: ProviderName) -> Optional[BaseProvider]:
         """Get a provider instance by name."""
         return self._providers.get(provider_name)
@@ -243,12 +264,57 @@ class ModelRouter:
                 decision.provider_actually_used = fallback_config.provider.value
                 return result, decision
             except (RateLimitError, ProviderError) as e:
+                # Fall through to Ollama if available
+                ollama_provider = self._providers.get(ProviderName.OLLAMA)
+                if ollama_provider:
+                    try:
+                        ollama_config = MODELS["local-llama"]
+                        result = self._execute_text(
+                            provider=ollama_provider,
+                            model_config=ollama_config,
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            history=history,
+                        )
+                        decision.used_fallback = True
+                        decision.model_actually_used = ollama_config.display_name
+                        decision.provider_actually_used = ollama_config.provider.value
+                        return result, decision
+                    except Exception as oe:
+                        raise ProviderError(
+                            "Router",
+                            f"Both primary ({primary_config.display_name}) and "
+                            f"fallback ({fallback_config.display_name}) failed (Last error: {e}). "
+                            f"Attempted local Ollama fallback but failed: {oe}",
+                        )
                 raise ProviderError(
                     "Router",
                     f"Both primary ({primary_config.display_name}) and "
                     f"fallback ({fallback_config.display_name}) failed. Last error: {e}",
                 )
         else:
+            # Check if local Ollama is available as a global fallback
+            ollama_provider = self._providers.get(ProviderName.OLLAMA)
+            if ollama_provider:
+                try:
+                    ollama_config = MODELS["local-llama"]
+                    result = self._execute_text(
+                        provider=ollama_provider,
+                        model_config=ollama_config,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        history=history,
+                    )
+                    decision.used_fallback = True
+                    decision.model_actually_used = ollama_config.display_name
+                    decision.provider_actually_used = ollama_config.provider.value
+                    return result, decision
+                except Exception as e:
+                    raise ProviderError(
+                        "Router",
+                        f"No available providers for task type '{classification.task_type.value}'. "
+                        f"Attempted fallback to local Ollama but failed: {e}"
+                    )
             raise ProviderError(
                 "Router",
                 f"No available providers for task type '{classification.task_type.value}'. "

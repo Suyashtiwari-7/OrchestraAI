@@ -9,6 +9,18 @@ spinners, and panels.
 import sys
 import time
 
+# Reconfigure stdout/stderr to UTF-8 to prevent encoding crashes on Windows console when printing emojis
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
