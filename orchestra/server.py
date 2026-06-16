@@ -52,6 +52,7 @@ from .tools.document_reader import gather_referenced_documents
 from .tools.codebase_search import execute_codebase_search
 from .tools.code_sandbox import execute_python_sandbox
 import base64
+import json
 
 SYSTEM_COMMAND_PROMPT = """You are a system command interpreter for OrchestraAI.
 Your job is to parse the user's intent to perform a local action (open browser, launch app, run terminal, run Python script, email operations, file system tasks, system settings, lock, screenshot, and info) and return a strict JSON block.
@@ -849,8 +850,6 @@ def chat(request: ChatRequest):
                 if exec_res.get("app_not_found"):
                     app_to_install = exec_res.get("app_name")
                     orig_action = exec_res.get("action") or classification.task_type.value
-                    import base64
-                    import json
                     orig_data = base64.b64encode(json.dumps(exec_res).encode('utf-8')).decode('utf-8')
                     response_text = f"PENDING_APP_INSTALL:{app_to_install}:{orig_action}:{orig_data}"
                     
