@@ -91,7 +91,7 @@ JSON Structure:
   "action": "<action_type>",
   "target": "<target_value_or_code_or_command>",
   "browser": "brave" | "chrome" | "edge" | "default" | null,
-  "reasoning": "<brief explanation of the extraction>",
+  "reasoning": "<A user-friendly, natural language summary of what is about to happen, written in simple present continuous tense, e.g., 'Setting up a reminder of meeting on Outlook for tomorrow, June 17th, at 12:00 PM'>",
   "email_to": "<recipient_email_or_null>",
   "email_subject": "<subject_or_null>",
   "email_body": "<body_or_null>",
