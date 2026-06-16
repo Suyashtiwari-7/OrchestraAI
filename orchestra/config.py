@@ -54,7 +54,6 @@ class ProviderName(Enum):
     SAMBANOVA = "sambanova"
     MISTRAL = "mistral"
     COHERE = "cohere"
-    HUGGINGFACE = "huggingface"
     OLLAMA = "ollama"
 
 
@@ -157,15 +156,6 @@ MODELS = {
         temperature=0.3,
     ),
 
-    # --- Hugging Face ---
-    "hf-llama": ModelConfig(
-        provider=ProviderName.HUGGINGFACE,
-        model_id="meta-llama/Llama-3.3-70B-Instruct",
-        display_name="Llama 3.3 70B (Hugging Face)",
-        max_tokens=2048,
-        temperature=0.7,
-    ),
-
     # --- Local Ollama ---
     "local-llama": ModelConfig(
         provider=ProviderName.OLLAMA,
@@ -249,7 +239,6 @@ class APIKeys:
     sambanova: Optional[str] = None
     mistral: Optional[str] = None
     cohere: Optional[str] = None
-    huggingface: Optional[str] = None
     ollama_host: Optional[str] = None
     ollama_model: Optional[str] = None
 
@@ -263,7 +252,6 @@ class APIKeys:
             sambanova=os.getenv("SAMBANOVA_API_KEY"),
             mistral=os.getenv("MISTRAL_API_KEY"),
             cohere=os.getenv("COHERE_API_KEY"),
-            huggingface=os.getenv("HUGGINGFACE_API_TOKEN"),
             ollama_host=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
             ollama_model=os.getenv("OLLAMA_MODEL", "llama3.2"),
         )
@@ -277,7 +265,6 @@ class APIKeys:
             ProviderName.SAMBANOVA: self.sambanova,
             ProviderName.MISTRAL: self.mistral,
             ProviderName.COHERE: self.cohere,
-            ProviderName.HUGGINGFACE: self.huggingface,
             ProviderName.OLLAMA: self.ollama_host,
         }
         return key_map.get(provider)
@@ -291,7 +278,6 @@ class APIKeys:
             ProviderName.SAMBANOVA: bool(self.sambanova and self.sambanova != "your_sambanova_api_key_here" and self.sambanova != "your_key_here"),
             ProviderName.MISTRAL: bool(self.mistral and self.mistral != "your_mistral_api_key_here" and self.mistral != "your_key_here"),
             ProviderName.COHERE: bool(self.cohere and self.cohere != "your_cohere_api_key_here" and self.cohere != "your_key_here"),
-            ProviderName.HUGGINGFACE: bool(self.huggingface),
             ProviderName.OLLAMA: bool(self.ollama_host),
         }
 

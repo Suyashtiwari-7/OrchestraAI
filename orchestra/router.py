@@ -37,7 +37,6 @@ from .providers.cerebras_provider import CerebrasProvider
 from .providers.sambanova_provider import SambaNovaProvider
 from .providers.mistral_provider import MistralProvider
 from .providers.cohere_provider import CohereProvider
-from .providers.huggingface_provider import HuggingFaceProvider
 from .providers.ollama_provider import OllamaProvider
 
 
@@ -149,17 +148,6 @@ class ModelRouter:
                 self._providers[ProviderName.COHERE] = None
         else:
             self._providers[ProviderName.COHERE] = None
-
-        # Initialize HuggingFace
-        if key_status.get(ProviderName.HUGGINGFACE):
-            try:
-                self._providers[ProviderName.HUGGINGFACE] = HuggingFaceProvider(
-                    api_token=api_keys.get_key(ProviderName.HUGGINGFACE)
-                )
-            except AuthenticationError:
-                self._providers[ProviderName.HUGGINGFACE] = None
-        else:
-            self._providers[ProviderName.HUGGINGFACE] = None
 
         # Initialize Ollama
         if key_status.get(ProviderName.OLLAMA):

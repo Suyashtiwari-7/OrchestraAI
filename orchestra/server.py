@@ -234,7 +234,6 @@ def get_status():
         "sambanova": "SambaNova",
         "mistral": "Mistral AI",
         "cohere": "Cohere",
-        "huggingface": "Hugging Face",
         "ollama": "Local Ollama",
     }
     for provider in ProviderName:
