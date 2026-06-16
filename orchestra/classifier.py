@@ -278,12 +278,61 @@ class TaskClassifier:
         Handles edge cases like markdown-wrapped JSON, extra text, etc.
         """
         try:
-            # Try to extract JSON from the response (handles ```json blocks)
-            json_match = re.search(r'\{[^}]+\}', response, re.DOTALL)
-            if not json_match:
+            # Robustly extract balanced JSON block from the response
+            json_str = None
+            start = response.find('{')
+            if start != -1:
+                brace_count = 0
+                in_string = False
+                escape = False
+                for i in range(start, len(response)):
+                    char = response[i]
+                    if escape:
+                        escape = False
+                        continue
+                    if char == '\\':
+                        escape = True
+                        continue
+                    if char == '"':
+                        in_string = not in_string
+                        continue
+                    if not in_string:
+                        if char == '{':
+                            brace_count += 1
+                        elif char == '}':
+                            brace_count -= 1
+                            if brace_count == 0:
+                                json_str = response[start:i+1]
+                                break
+            
+            if not json_str:
                 raise ValueError("No JSON found in response")
 
-            data = json.loads(json_match.group())
+            # Robustly parse JSON (handling literal newlines inside string values)
+            try:
+                data = json.loads(json_str)
+            except json.JSONDecodeError:
+                cleaned = []
+                in_string = False
+                escape = False
+                for char in json_str:
+                    if escape:
+                        cleaned.append(char)
+                        escape = False
+                        continue
+                    if char == '\\':
+                        cleaned.append(char)
+                        escape = True
+                        continue
+                    if char == '"':
+                        in_string = not in_string
+                        cleaned.append(char)
+                        continue
+                    if in_string and char in ('\n', '\r'):
+                        cleaned.append('\\n')
+                    else:
+                        cleaned.append(char)
+                data = json.loads("".join(cleaned))
 
             # Map the task type string to enum
             task_type_str = data.get("task_type", "general").lower()

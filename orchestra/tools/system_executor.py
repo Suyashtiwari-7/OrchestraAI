@@ -184,12 +184,62 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
     }
     """
     try:
-        # Extract JSON from response content (handling optional code blocks)
-        json_match = re.search(r'\{[^}]+\}', response_content, re.DOTALL)
-        if not json_match:
+        # Robustly extract balanced JSON block from response content
+        json_str = None
+        start = response_content.find('{')
+        if start != -1:
+            brace_count = 0
+            in_string = False
+            escape = False
+            for i in range(start, len(response_content)):
+                char = response_content[i]
+                if escape:
+                    escape = False
+                    continue
+                if char == '\\':
+                    escape = True
+                    continue
+                if char == '"':
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            json_str = response_content[start:i+1]
+                            break
+        
+        if not json_str:
             return {"success": False, "error": "No JSON payload found in model output."}
 
-        data = json.loads(json_match.group())
+        # Robustly parse JSON (handling literal newlines inside string values)
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError:
+            cleaned = []
+            in_string = False
+            escape = False
+            for char in json_str:
+                if escape:
+                    cleaned.append(char)
+                    escape = False
+                    continue
+                if char == '\\':
+                    cleaned.append(char)
+                    escape = True
+                    continue
+                if char == '"':
+                    in_string = not in_string
+                    cleaned.append(char)
+                    continue
+                if in_string and char in ('\n', '\r'):
+                    cleaned.append('\\n')
+                else:
+                    cleaned.append(char)
+            data = json.loads("".join(cleaned))
+
         action = data.get("action", "").lower().strip()
         target = data.get("target", "").strip()
         browser = data.get("browser", "").lower().strip() if data.get("browser") else None
