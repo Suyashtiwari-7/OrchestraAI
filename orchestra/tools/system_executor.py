@@ -1217,9 +1217,17 @@ def check_app_installation_status(app_name: str) -> Dict[str, Any]:
         
     # 3. Check file using existing search
     file_found = False
-    resolved_path = find_windows_executable(app_key)
-    if resolved_path:
-        file_found = True
+    resolved_path = None
+    if app_key == "outlook":
+        outlook_path = get_outlook_path()
+        if outlook_path and outlook_path != "outlook.exe" and Path(outlook_path).exists():
+            resolved_path = outlook_path
+            file_found = True
+
+    if not file_found:
+        resolved_path = find_windows_executable(app_key)
+        if resolved_path:
+            file_found = True
         
     installed = protocol_found or file_found
     
