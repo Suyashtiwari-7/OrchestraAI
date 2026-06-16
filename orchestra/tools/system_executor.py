@@ -100,21 +100,45 @@ def get_outlook_path() -> str:
 
 def find_windows_executable(app_name: str) -> Optional[str]:
     """
-    Looks for a Windows executable by name in common installation folders
-    using specific paths first and a shallow folder scan as fallback.
+    Looks for a Windows executable by name using:
+    1. PATH resolution (shutil.which)
+    2. Registry "App Paths" lookup (where registered Windows applications store their executables)
+    3. Common specific installation paths directly
+    4. Shallow directory walk fallback
     """
     exe_name = app_name if "." in app_name else f"{app_name}.exe"
+    
+    # 1. Resolve via PATH (shutil.which)
+    import shutil
+    resolved_path = shutil.which(exe_name)
+    if resolved_path:
+        return resolved_path
+        
+    # 2. Resolve via Registry App Paths
+    try:
+        import winreg
+        for hkey in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            for subkey_path in (
+                rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}",
+                rf"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}"
+            ):
+                try:
+                    with winreg.OpenKey(hkey, subkey_path) as key:
+                        val, _ = winreg.QueryValueEx(key, "")
+                        if val:
+                            clean_val = val.strip('"\'')
+                            if os.path.exists(clean_val):
+                                return clean_val
+                except FileNotFoundError:
+                    pass
+    except Exception:
+        pass
+
+    # 3. Check common app locations directly (fast path)
     program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
     program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
     local_app_data = os.environ.get("LocalAppData")
     
-    search_dirs = []
-    if local_app_data:
-        search_dirs.append(Path(local_app_data) / "Programs")
-        search_dirs.append(Path(local_app_data) / "Microsoft" / "WindowsApps")
-    search_dirs.extend([Path(program_files), Path(program_files_x86)])
-    
-    # 1. Check common app locations directly (fast path)
     specific_paths = [
         # VLC
         Path(program_files) / "VideoLAN" / "VLC" / "vlc.exe",
@@ -123,6 +147,11 @@ def find_windows_executable(app_name: str) -> Optional[str]:
         Path(local_app_data) / "Zoom" / "bin" / "zoom.exe" if local_app_data else None,
         # Teams
         Path(local_app_data) / "Microsoft" / "Teams" / "current" / "Teams.exe" if local_app_data else None,
+        # Office / Outlook
+        Path(program_files) / "Microsoft Office" / "root" / "Office16" / "OUTLOOK.EXE",
+        Path(program_files_x86) / "Microsoft Office" / "root" / "Office16" / "OUTLOOK.EXE",
+        Path(program_files) / "Microsoft Office" / "Office16" / "OUTLOOK.EXE",
+        Path(program_files_x86) / "Microsoft Office" / "Office16" / "OUTLOOK.EXE",
     ]
     specific_paths = [p for p in specific_paths if p is not None]
     
@@ -133,7 +162,13 @@ def find_windows_executable(app_name: str) -> Optional[str]:
         except Exception:
             continue
             
-    # 2. Shallow walk (depth <= 3) through main application directories
+    # 4. Shallow walk (depth <= 3) through main application directories
+    search_dirs = []
+    if local_app_data:
+        search_dirs.append(Path(local_app_data) / "Programs")
+        search_dirs.append(Path(local_app_data) / "Microsoft" / "WindowsApps")
+    search_dirs.extend([Path(program_files), Path(program_files_x86)])
+
     for base_dir in search_dirs:
         try:
             if not base_dir.exists():
