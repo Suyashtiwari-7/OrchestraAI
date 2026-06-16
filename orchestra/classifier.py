@@ -308,30 +308,54 @@ class TaskClassifier:
             if not json_str:
                 raise ValueError("No JSON found in response")
 
-            # Robustly parse JSON (handling literal newlines inside string values)
+            # Robustly parse JSON (handling literal newlines and invalid escapes inside string values)
             try:
                 data = json.loads(json_str)
             except json.JSONDecodeError:
                 cleaned = []
                 in_string = False
-                escape = False
-                for char in json_str:
-                    if escape:
+                i = 0
+                n = len(json_str)
+                while i < n:
+                    char = json_str[i]
+                    if not in_string:
+                        if char == '"':
+                            in_string = True
                         cleaned.append(char)
-                        escape = False
+                        i += 1
                         continue
-                    if char == '\\':
-                        cleaned.append(char)
-                        escape = True
-                        continue
+                    
                     if char == '"':
-                        in_string = not in_string
+                        in_string = False
                         cleaned.append(char)
+                        i += 1
                         continue
-                    if in_string and char in ('\n', '\r'):
+                    
+                    if char == '\\':
+                        # Check for valid escape
+                        if i + 1 < n:
+                            next_char = json_str[i + 1]
+                            if next_char in ('"', '\\', '/', 'b', 'f', 'n', 'r', 't'):
+                                cleaned.append('\\')
+                                cleaned.append(next_char)
+                                i += 2
+                                continue
+                            elif next_char == 'u':
+                                if i + 5 < n and all(c in '0123456789abcdefABCDEF' for c in json_str[i+2:i+6]):
+                                    cleaned.append('\\')
+                                    cleaned.append('u')
+                                    cleaned.extend(json_str[i+2:i+6])
+                                    i += 6
+                                    continue
+                        # Not a valid escape sequence: escape the backslash itself
+                        cleaned.append('\\\\')
+                        i += 1
+                    elif char in ('\n', '\r'):
                         cleaned.append('\\n')
+                        i += 1
                     else:
                         cleaned.append(char)
+                        i += 1
                 data = json.loads("".join(cleaned))
 
             # Map the task type string to enum
