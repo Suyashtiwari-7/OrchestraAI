@@ -299,10 +299,10 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
                     i += 1
             data = json.loads("".join(cleaned))
 
-        action = data.get("action", "").lower().strip()
-        target = data.get("target", "").strip()
-        browser = data.get("browser", "").lower().strip() if data.get("browser") else None
-        reasoning = data.get("reasoning", "")
+        action = (data.get("action") or "").lower().strip()
+        target = (data.get("target") or "").strip()
+        browser = (data.get("browser") or "").lower().strip() if data.get("browser") else None
+        reasoning = data.get("reasoning") or ""
 
         # Import handlers lazily to prevent circular imports
         from orchestra.config import settings
