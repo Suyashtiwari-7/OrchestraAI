@@ -31,6 +31,15 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchRoutingTable();
     loadChatHistory();
 
+    // Hide mascot overlay if running inside the desktop app webview
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('desktop') === 'true') {
+        const mascot = document.getElementById('robot-mascot');
+        const cmdWindow = document.getElementById('mascot-command-window');
+        if (mascot) mascot.style.display = 'none';
+        if (cmdWindow) cmdWindow.style.display = 'none';
+    }
+
     // --- Event Listeners ---
 
     // Toggle Sidebar (Mobile view)

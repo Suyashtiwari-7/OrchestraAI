@@ -297,7 +297,7 @@ if __name__ == "__main__":
             import webview
             window = webview.create_window(
                 title="DARKI",
-                url="http://127.0.0.1:8000",
+                url="http://127.0.0.1:8000?desktop=true",
                 width=1100,
                 height=850,
                 min_size=(800, 600),
