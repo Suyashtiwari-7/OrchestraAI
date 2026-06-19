@@ -285,6 +285,20 @@ def get_history():
         })
     return {"history": entries}
 
+@app.get("/api/profile")
+def get_profile():
+    """Retrieve user facts and name from local memory."""
+    name = "Alex"
+    for fact in profile_memory._facts:
+        if fact.lower().startswith("my name is "):
+            name = fact[11:].strip()
+            break
+    return {
+        "name": name,
+        "facts": profile_memory._facts
+    }
+
+
 @app.post("/api/clear")
 def clear_history():
     """Clear conversation history."""

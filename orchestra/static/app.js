@@ -11,6 +11,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     const sidebar = document.getElementById("app-sidebar");
     const sidebarToggle = document.getElementById("sidebar-toggle");
+    const btnCloseSidebar = document.getElementById("btn-close-sidebar");
+    const btnNewChat = document.getElementById("btn-new-chat");
     
     const providerStatusList = document.getElementById("provider-status-list");
     const routingTableBody = document.getElementById("routing-table-body");
@@ -22,6 +24,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const overridePills = document.querySelectorAll(".override-pill");
     const quickPromptCards = document.querySelectorAll(".quick-prompt-card");
 
+    const userGreetingName = document.getElementById("user-greeting-name");
+    const userAvatarBtn = document.getElementById("user-avatar-btn");
+    const activeProviderPill = document.getElementById("active-provider-pill");
+    const providerDropdownMenu = document.getElementById("provider-dropdown-menu");
+
     // Local State
     let activeOverrideProvider = ""; // "gemini", "groq", "cerebras", or ""
     let chatHistory = [];
@@ -29,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initialize Page
     fetchSystemStatus();
     fetchRoutingTable();
+    fetchUserProfile();
     loadChatHistory();
 
     // Hide mascot overlay if running inside the desktop app webview
@@ -48,14 +56,50 @@ document.addEventListener("DOMContentLoaded", () => {
         sidebar.classList.toggle("active");
     });
 
+    if (btnCloseSidebar) {
+        btnCloseSidebar.addEventListener("click", () => {
+            sidebar.classList.remove("active");
+        });
+    }
+
     // Close Sidebar clicking outside on mobile
     document.addEventListener("click", (e) => {
         if (window.innerWidth <= 768 && sidebar.classList.contains("active")) {
-            if (!sidebar.contains(e.target) && e.target !== sidebarToggle) {
+            if (!sidebar.contains(e.target) && e.target !== sidebarToggle && e.target !== btnCloseSidebar) {
                 sidebar.classList.remove("active");
             }
         }
     });
+
+    // Active Provider Dropdown Toggle
+    if (activeProviderPill) {
+        activeProviderPill.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (providerDropdownMenu) providerDropdownMenu.classList.toggle("hidden");
+        });
+    }
+
+    // Hide active provider dropdown when clicking elsewhere
+    document.addEventListener("click", (e) => {
+        if (providerDropdownMenu && !providerDropdownMenu.classList.contains("hidden")) {
+            if (!activeProviderPill.contains(e.target) && !providerDropdownMenu.contains(e.target)) {
+                providerDropdownMenu.classList.add("hidden");
+            }
+        }
+    });
+
+    // Compose / New Chat button handler
+    if (btnNewChat) {
+        btnNewChat.addEventListener("click", () => {
+            userInput.value = "";
+            userInput.focus();
+            chatMessages.innerHTML = "";
+            welcomeScreen.classList.remove("hidden");
+            // Switch auto-route visually on new chat
+            const autoRoutePill = document.querySelector('.override-pill[data-provider=""]');
+            if (autoRoutePill) autoRoutePill.click();
+        });
+    }
 
     // Quick Prompt Cards click handler
     quickPromptCards.forEach(card => {
@@ -72,6 +116,27 @@ document.addEventListener("DOMContentLoaded", () => {
             overridePills.forEach(p => p.classList.remove("active"));
             pill.classList.add("active");
             activeOverrideProvider = pill.getAttribute("data-provider");
+            
+            // Hide dropdown
+            if (providerDropdownMenu) providerDropdownMenu.classList.add("hidden");
+
+            // Update visible badge
+            if (activeProviderPill) {
+                const textSpan = activeProviderPill.querySelector(".pill-text");
+                const dotSpan = activeProviderPill.querySelector(".pill-dot");
+                
+                let text = pill.innerText.replace(/^[^\w\s]+/, '').trim();
+                if (textSpan) textSpan.innerText = text;
+                
+                if (dotSpan) {
+                    dotSpan.className = "pill-dot";
+                    if (activeOverrideProvider === "") {
+                        dotSpan.classList.add("auto");
+                    } else {
+                        dotSpan.classList.add(activeOverrideProvider);
+                    }
+                }
+            }
             userInput.focus();
         });
     });
@@ -99,6 +164,9 @@ document.addEventListener("DOMContentLoaded", () => {
         // Show loading spinner
         showLoader("Classifying task routing...");
 
+        // Update history sidebar
+        renderSidebarHistory();
+
         try {
             const response = await fetch("/api/chat", {
                 method: "POST",
@@ -121,6 +189,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Add assistant bubble
             appendMessageBubble("assistant", data.content, data);
+            
+            // Update history sidebar again
+            renderSidebarHistory();
+
+            // Refresh user name in case they just introduced themselves (e.g. "my name is Alex")
+            if (text.toLowerCase().includes("my name is")) {
+                fetchUserProfile();
+            }
 
         } catch (error) {
             hideLoader();
@@ -240,9 +316,64 @@ document.addEventListener("DOMContentLoaded", () => {
                     appendMessageBubble(entry.role, entry.content, meta, false);
                 });
             }
+            renderSidebarHistory();
         } catch (error) {
             console.error("Failed to fetch history:", error);
         }
+    }
+
+    // Fetch User Profile facts and greeting
+    async function fetchUserProfile() {
+        try {
+            const response = await fetch("/api/profile");
+            if (response.ok) {
+                const data = await response.json();
+                if (data.name) {
+                    if (userGreetingName) userGreetingName.innerText = data.name;
+                    if (userAvatarBtn) userAvatarBtn.innerText = data.name.charAt(0).toUpperCase();
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load user profile:", err);
+        }
+    }
+
+    // Render unique user messages (latest 5) in Today section of history
+    function renderSidebarHistory() {
+        const historyListToday = document.getElementById("history-list-today");
+        if (!historyListToday) return;
+
+        // Clear existing list
+        historyListToday.innerHTML = "";
+        
+        // Find user messages
+        const userMsgs = chatHistory.filter(entry => entry.role === "user");
+        if (userMsgs.length === 0) {
+            // Default mockup item
+            historyListToday.innerHTML = `
+                <div class="history-item active">
+                    <span>Tell us about your capabilities</span>
+                    <button class="item-menu-btn">•••</button>
+                </div>
+            `;
+            return;
+        }
+
+        // Render unique user messages (up to 5 latest) in History section
+        const uniquePrompts = [...new Set(userMsgs.map(m => m.content))].slice(-5).reverse();
+        uniquePrompts.forEach((prompt, idx) => {
+            const item = document.createElement("div");
+            item.className = `history-item ${idx === 0 ? 'active' : ''}`;
+            item.innerHTML = `
+                <span>${prompt}</span>
+                <button class="item-menu-btn">•••</button>
+            `;
+            item.addEventListener("click", () => {
+                userInput.value = prompt;
+                userInput.focus();
+            });
+            historyListToday.appendChild(item);
+        });
     }
 
     // --- UI Render Helpers ---

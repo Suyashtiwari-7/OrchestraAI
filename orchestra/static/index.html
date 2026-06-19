@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DARKI 🤖 - Your Personal AI Friend</title>
+    <title>DARKI 🤖 - Personal AI Assistant</title>
     <!-- Outfit & JetBrains Mono Fonts from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
                 </svg>
             </button>
             <div class="mobile-brand">
-                <span class="music-note">🤖</span> DARKI
+                <span class="gold-logo-icon">🤖</span> DARKI
             </div>
             <button id="clear-chat-mobile" class="icon-btn" title="Clear Chat">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -35,74 +35,186 @@
 
         <!-- Left Sidebar / Navigation Panel -->
         <aside id="app-sidebar" class="sidebar">
-            <div class="sidebar-brand">
-                <span class="logo-icon">🤖</span>
-                <div>
-                    <h1>DARKI</h1>
-                    <p class="tagline">Personal AI Assistant</p>
-                </div>
-            </div>
-
-            <!-- Provider Status Panel -->
-            <div class="status-panel">
-                <h2>API Key Status</h2>
-                <div id="provider-status-list" class="provider-status-list">
-                    <div class="provider-loading">Checking system status...</div>
-                </div>
-            </div>
-
-            <!-- Routing Quick-Ref panel -->
-            <div class="routing-ref-panel">
-                <h2>Model Routing matrix</h2>
-                <div class="routing-table-container">
-                    <table class="routing-table">
-                        <thead>
-                            <tr>
-                                <th>Task</th>
-                                <th>Primary</th>
-                            </tr>
-                        </thead>
-                        <tbody id="routing-table-body">
-                            <!-- Dynamic routing mapping -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Bottom utility buttons -->
-            <div class="sidebar-footer">
-                <button id="btn-export" class="sidebar-btn secondary">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    Export History
+            <!-- Sidebar Header Utilities -->
+            <div class="sidebar-header-row">
+                <button id="btn-new-chat" class="header-util-btn" title="New Chat">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
                 </button>
-                <button id="btn-clear" class="sidebar-btn danger">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    Clear Memory
+                <button id="btn-clear" class="header-util-btn" title="Clear Memory">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+                <button id="btn-close-sidebar" class="header-util-btn sidebar-close-only" title="Toggle Sidebar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="sidebar-search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="search-icon">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="history-search" placeholder="Search" autocomplete="off">
+            </div>
+
+            <!-- Collapsible System Panels -->
+            <div class="sidebar-collapsibles">
+                <details class="sidebar-accordion">
+                    <summary>🔑 API Key Status</summary>
+                    <div class="accordion-content">
+                        <div id="provider-status-list" class="provider-status-list">
+                            <div class="provider-loading">Checking system status...</div>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="sidebar-accordion">
+                    <summary>🌐 Model Routing Matrix</summary>
+                    <div class="accordion-content">
+                        <div class="routing-table-container">
+                            <table class="routing-table">
+                                <thead>
+                                    <tr>
+                                        <th>Task</th>
+                                        <th>Primary</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="routing-table-body">
+                                    <!-- Dynamic routing mapping -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="sidebar-accordion">
+                    <summary>⚙️ System Utilities</summary>
+                    <div class="accordion-content flex-col gap-8">
+                        <button id="btn-export" class="sidebar-btn-util">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Export History
+                        </button>
+                    </div>
+                </details>
+            </div>
+
+            <!-- Chat History Area -->
+            <div class="sidebar-history-container">
+                <div class="history-section" id="section-today">
+                    <div class="section-title">Today</div>
+                    <div class="history-list" id="history-list-today">
+                        <div class="history-item active">
+                            <span>Tell us about your capabilities</span>
+                            <button class="item-menu-btn">•••</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="history-section" id="section-yesterday">
+                    <div class="section-title">Yesterday</div>
+                    <div class="history-list" id="history-list-yesterday">
+                        <div class="history-item">
+                            <span>Explain local Ollama memory</span>
+                            <button class="item-menu-btn">•••</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="history-section" id="section-3days">
+                    <div class="section-title">3 days ago</div>
+                    <div class="history-list" id="history-list-3days">
+                        <div class="history-item">
+                            <span>Code sandbox execution test</span>
+                            <button class="item-menu-btn">•••</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="history-section" id="section-7days">
+                    <div class="section-title">7 days ago</div>
+                    <div class="history-list" id="history-list-7days">
+                        <div class="history-item">
+                            <span>Launch outlook calendar reminder</span>
+                            <button class="item-menu-btn">•••</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="history-section" id="section-30days">
+                    <div class="section-title">Last 30 days</div>
+                    <div class="history-list" id="history-list-30days">
+                        <div class="history-item">
+                            <span>Scrape webpage headers python</span>
+                            <button class="item-menu-btn">•••</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Premium Subscription Promo Card -->
+            <div class="purchase-promo-card">
+                <div class="promo-content">
+                    <div class="lock-circle">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </div>
+                    <div class="promo-text">
+                        <h4>Purchase</h4>
+                        <p>a subscription to unlock over 15 new features</p>
+                    </div>
+                </div>
+                <button class="promo-arrow-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
                 </button>
             </div>
         </aside>
 
         <!-- Main Chat Area -->
         <main class="chat-main">
+            <!-- App Main Top Header -->
+            <header class="app-main-header">
+                <div class="header-brand">
+                    <div class="gold-logo-icon-small">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+                            <circle cx="12" cy="5" r="2"></circle>
+                            <path d="M12 7v4"></path>
+                            <line x1="8" y1="16" x2="8" y2="16.01"></line>
+                            <line x1="16" y1="16" x2="16" y2="16.01"></line>
+                        </svg>
+                    </div>
+                    <span class="brand-name">DARKI</span>
+                </div>
+                <div class="header-right">
+                    <div class="user-avatar" id="user-avatar-btn">A</div>
+                </div>
+            </header>
+
             <!-- Welcome screen when no history exists -->
             <div id="welcome-screen" class="welcome-screen">
-                <div class="welcome-icon">🤖</div>
-                <h2>DARKI Assistant</h2>
-                <p>Welcome! Type a prompt and DARKI will classify the task and assign it to the most capable free cloud LLM (Gemini, Groq, or Cerebras) automatically.</p>
-                <div class="quick-prompts">
-                    <div class="quick-prompt-card" data-prompt="Write a Python script to scrape news headlines from a webpage and print them.">
-                        <h3>💻 Code Automation</h3>
-                        <p>"Write a Python script to scrape news headlines..."</p>
-                    </div>
-                    <div class="quick-prompt-card" data-prompt="/image A futuristic library filled with glowing holographic books, digital art style">
-                        <h3>🖼️ Image Generation</h3>
-                        <p>"/image A futuristic library filled with glowing..."</p>
-                    </div>
-                    <div class="quick-prompt-card" data-prompt="Explain the difference between a shallow copy and a deep copy in Python with memory diagrams.">
-                        <h3>🧠 Deep Reasoning</h3>
-                        <p>"Explain the difference between a shallow copy..."</p>
-                    </div>
+                <!-- Glowing Gold Orb Visual -->
+                <div class="orb-container">
+                    <div class="orb-outer"></div>
+                    <div class="orb-middle"></div>
+                    <div class="orb-core"></div>
                 </div>
+
+                <h2 class="welcome-greeting">Welcome back <span id="user-greeting-name">Alex</span>!</h2>
+                <p class="welcome-subtitle">What do you want to do today?</p>
             </div>
 
             <!-- Scrollable chat thread -->
@@ -122,35 +234,104 @@
 
             <!-- Footer Message Input Area -->
             <footer class="chat-input-area">
-                <div class="provider-selectors">
-                    <span class="selector-label">Force Provider:</span>
-                    <button class="override-pill" data-provider="">Auto Route</button>
-                    <button class="override-pill provider-gemini" data-provider="gemini">🔵 Gemini</button>
-                    <button class="override-pill provider-groq" data-provider="groq">🟢 Groq</button>
-                    <button class="override-pill provider-cerebras" data-provider="cerebras">🟣 Cerebras</button>
-                    <button class="override-pill provider-sambanova" data-provider="sambanova">🌋 SambaNova</button>
-                    <button class="override-pill provider-mistral" data-provider="mistral">🌪️ Mistral</button>
-                    <button class="override-pill provider-cohere" data-provider="cohere">🌿 Cohere</button>
-                    <span class="selector-label" style="margin-left: 12px;">Voice:</span>
-                    <button type="button" class="override-pill" id="voice-toggle-btn" title="Toggle 'Hey DARKI' wake word listening">🎙️ Hey DARKI: OFF</button>
-                </div>
-                <form id="chat-form" class="chat-form">
-                    <input type="text" id="user-input" placeholder="Ask anything, scrape a URL, generate an image..." autocomplete="off">
-                    <button type="button" id="mic-btn" class="mic-btn" title="Voice Typing / Wake Word Mode">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <form id="chat-form" class="chat-form-pill">
+                    <!-- Attachment button -->
+                    <button type="button" id="attachment-btn" class="input-action-btn" title="Attach file">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Provider Selector Pill -->
+                    <div class="provider-dropdown-container">
+                        <button type="button" id="active-provider-pill" class="active-provider-pill">
+                            <span class="pill-dot auto"></span>
+                            <span class="pill-text">Auto Route</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        
+                        <!-- Floating Overrides Dropdown Menu -->
+                        <div id="provider-dropdown-menu" class="provider-dropdown-menu hidden">
+                            <div class="dropdown-title">Force Provider</div>
+                            <button type="button" class="override-pill active" data-provider="">✨ Auto Route</button>
+                            <button type="button" class="override-pill provider-ollama" data-provider="ollama">💻 Local Ollama</button>
+                            <button type="button" class="override-pill provider-gemini" data-provider="gemini">🔵 Gemini</button>
+                            <button type="button" class="override-pill provider-groq" data-provider="groq">🟢 Groq</button>
+                            <button type="button" class="override-pill provider-cerebras" data-provider="cerebras">Purple Cerebras</button>
+                            <button type="button" class="override-pill provider-sambanova" data-provider="sambanova">🌋 SambaNova</button>
+                            <button type="button" class="override-pill provider-mistral" data-provider="mistral">🌪️ Mistral</button>
+                            <button type="button" class="override-pill provider-cohere" data-provider="cohere">🌿 Cohere</button>
+                            <div class="dropdown-divider"></div>
+                            <button type="button" class="override-pill" id="voice-toggle-btn">🎙️ Hey DARKI: OFF</button>
+                        </div>
+                    </div>
+
+                    <!-- Input Box -->
+                    <input type="text" id="user-input" placeholder="Tell us about your capabilities..." autocomplete="off">
+                    
+                    <!-- Voice Dictation mic button -->
+                    <button type="button" id="mic-btn" class="input-action-btn mic-icon-btn" title="Voice Typing">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                             <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                             <line x1="12" y1="19" x2="12" y2="23"></line>
                             <line x1="8" y1="23" x2="16" y2="23"></line>
                         </svg>
                     </button>
-                    <button type="submit" class="send-btn" aria-label="Send Prompt">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+
+                    <!-- Send button -->
+                    <button type="submit" class="send-circle-btn" aria-label="Send Prompt">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="22" y1="2" x2="11" y2="13"></line>
                             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                         </svg>
                     </button>
                 </form>
+
+                <!-- Mock action cards (under welcome screen or floating) -->
+                <div class="welcome-action-cards" id="welcome-action-cards">
+                    <div class="quick-prompt-card" data-prompt="Search for local suppliers and prices in my area">
+                        <div class="card-icon gold">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <h3>Search for suppliers</h3>
+                            <p>We will find suppliers with the best prices</p>
+                        </div>
+                    </div>
+
+                    <div class="quick-prompt-card" data-prompt="Select materials required for building a residential house drawing">
+                        <div class="card-icon gold">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                <polyline points="2 17 12 22 22 17"></polyline>
+                                <polyline points="2 12 12 17 22 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <h3>Select materials</h3>
+                            <p>According to drawings, select the best materials</p>
+                        </div>
+                    </div>
+
+                    <div class="quick-prompt-card" data-prompt="Calculate total cost of materials and labor for the drawing">
+                        <div class="card-icon gold">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <h3>Calculation of the cost</h3>
+                            <p>Our AI will quickly summarize estimated costs</p>
+                        </div>
+                    </div>
+                </div>
             </footer>
         </main>
     </div>
