@@ -41,18 +41,84 @@
 
 body {
     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: var(--bg-dark);
-    /* Grid background + Gold radial glow */
-    background-image: 
-        radial-gradient(circle at center bottom, hsla(52, 100%, 50%, 0.03) 0%, transparent 55%),
-        linear-gradient(rgba(230, 200, 0, 0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(230, 200, 0, 0.015) 1px, transparent 1px);
-    background-size: 100% 100%, 24px 24px, 24px 24px;
+    /* Gold mockup screen background gradient */
+    background: radial-gradient(circle at top right, hsl(52, 90%, 42%) 0%, hsl(52, 100%, 25%) 50%, hsl(52, 100%, 15%) 100%);
     color: var(--text-primary);
     overflow: hidden;
     height: 100vh;
     width: 100vw;
     -webkit-font-smoothing: antialiased;
+    
+    /* Centering the floating app window */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+/* Mock Desktop Background Elements */
+.mock-desktop-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Let clicks pass through */
+    z-index: 1;
+    /* Grid pattern over the background */
+    background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+.desktop-top-nav {
+    position: absolute;
+    top: 24px;
+    left: 32px;
+    right: 32px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.desktop-top-nav span {
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.desktop-top-nav span:hover, .desktop-top-nav span.active {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.desktop-top-nav .year {
+    margin-left: auto;
+    font-weight: 600;
+}
+
+.giant-bg-text {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 13vw; /* Responsive huge size */
+    font-weight: 900;
+    letter-spacing: -2px;
+    /* Mask/Outlined font matching the "AI Agent" in background */
+    color: transparent;
+    -webkit-text-stroke: 2px rgba(255, 255, 255, 0.15);
+    white-space: nowrap;
+    user-select: none;
+    z-index: 1;
 }
 
 h1, h2, h3, h4 {
@@ -67,12 +133,20 @@ button {
     background: none;
 }
 
-/* App Container Layout */
+/* App Container Layout (Floating Rounded Window) */
 .app-container {
     display: flex;
-    height: 100vh;
-    width: 100vw;
+    height: 85vh;
+    width: 90vw;
+    max-width: 1240px;
+    max-height: 820px;
     position: relative;
+    z-index: 10;
+    border-radius: 28px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85);
+    background-color: var(--bg-dark);
 }
 
 /* Sidebar Design (Mockup-inspired) */
@@ -1377,6 +1451,19 @@ button {
 
 /* Responsive Styles for Tablet & Mobile */
 @media (max-width: 768px) {
+    .mock-desktop-background {
+        display: none;
+    }
+    
+    .app-container {
+        height: 100vh;
+        width: 100vw;
+        max-width: none;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+    }
+
     .sidebar {
         position: fixed;
         left: 0;
