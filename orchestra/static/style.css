@@ -41,84 +41,12 @@
 
 body {
     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    /* Gold mockup screen background gradient */
-    background: radial-gradient(circle at top right, hsl(52, 90%, 42%) 0%, hsl(52, 100%, 25%) 50%, hsl(52, 100%, 15%) 100%);
+    background-color: var(--bg-dark);
     color: var(--text-primary);
     overflow: hidden;
     height: 100vh;
     width: 100vw;
     -webkit-font-smoothing: antialiased;
-    
-    /* Centering the floating app window */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-}
-
-/* Mock Desktop Background Elements */
-.mock-desktop-background {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none; /* Let clicks pass through */
-    z-index: 1;
-    /* Grid pattern over the background */
-    background-image: 
-        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-    background-size: 32px 32px;
-}
-
-.desktop-top-nav {
-    position: absolute;
-    top: 24px;
-    left: 32px;
-    right: 32px;
-    display: flex;
-    align-items: center;
-    gap: 28px;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.6);
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-}
-
-.desktop-top-nav span {
-    cursor: pointer;
-    transition: var(--transition-smooth);
-}
-
-.desktop-top-nav span:hover, .desktop-top-nav span.active {
-    color: #fff;
-    text-decoration: underline;
-    text-underline-offset: 4px;
-}
-
-.desktop-top-nav .year {
-    margin-left: auto;
-    font-weight: 600;
-}
-
-.giant-bg-text {
-    position: absolute;
-    top: 45%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 13vw; /* Responsive huge size */
-    font-weight: 900;
-    letter-spacing: -2px;
-    /* Mask/Outlined font matching the "AI Agent" in background */
-    color: transparent;
-    -webkit-text-stroke: 2px rgba(255, 255, 255, 0.15);
-    white-space: nowrap;
-    user-select: none;
-    z-index: 1;
 }
 
 h1, h2, h3, h4 {
@@ -133,19 +61,14 @@ button {
     background: none;
 }
 
-/* App Container Layout (Floating Rounded Window) */
+/* App Container Layout (Full Screen) */
 .app-container {
     display: flex;
-    height: 85vh;
-    width: 90vw;
-    max-width: 1240px;
-    max-height: 820px;
+    height: 100vh;
+    width: 100vw;
     position: relative;
     z-index: 10;
-    border-radius: 28px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85);
     background-color: var(--bg-dark);
 }
 
@@ -602,58 +525,88 @@ button {
 /* Animated 3D glowing gold orb */
 .orb-container {
     position: relative;
-    width: 140px;
-    height: 140px;
-    margin-bottom: 32px;
+    width: 160px;
+    height: 160px;
+    margin-bottom: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
+.orb-glow {
+    position: absolute;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(230, 200, 0, 0.25) 0%, rgba(230, 200, 0, 0.05) 50%, transparent 70%);
+    filter: blur(10px);
+    animation: orbGlowBreath 3s ease-in-out infinite alternate;
+}
+
 .orb-outer {
     position: absolute;
-    width: 120px;
-    height: 120px;
+    width: 110px;
+    height: 110px;
     border-radius: 50%;
-    background: radial-gradient(circle, transparent 40%, var(--accent-gold-glow) 100%);
-    border: 1px solid rgba(230, 200, 0, 0.15);
-    box-shadow: 0 0 40px var(--accent-gold-glow);
-    animation: orbSpin 20s linear infinite;
+    background: conic-gradient(from 0deg, transparent 20%, var(--accent-gold) 50%, transparent 80%, var(--accent-gold) 100%);
+    filter: blur(1px);
+    opacity: 0.8;
+    animation: orbRotateClockwise 8s linear infinite;
 }
 
 .orb-middle {
     position: absolute;
-    width: 80px;
-    height: 80px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
-    background: radial-gradient(circle, transparent 30%, hsla(52, 100%, 50%, 0.3) 100%);
-    box-shadow: 0 0 30px hsla(52, 100%, 50%, 0.2);
-    animation: orbPulse 3s ease-in-out infinite alternate;
+    background: conic-gradient(from 120deg, transparent 10%, #fff 40%, transparent 60%, var(--accent-gold) 90%);
+    filter: blur(2px);
+    opacity: 0.9;
+    animation: orbRotateCounter 6s linear infinite;
 }
 
 .orb-core {
     position: absolute;
-    width: 44px;
-    height: 44px;
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
-    background: radial-gradient(circle, var(--accent-gold) 0%, hsl(40, 100%, 35%) 100%);
+    background: radial-gradient(circle, #000 35%, #141414 70%, var(--accent-gold) 100%);
     box-shadow: 
-        0 0 25px var(--accent-gold),
-        0 0 50px hsla(52, 100%, 50%, 0.5);
-    animation: orbCorePulse 1.5s ease-in-out infinite alternate;
+        inset 0 0 15px rgba(230, 200, 0, 0.8),
+        0 0 25px rgba(230, 200, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
-@keyframes orbSpin {
+.orb-core::after {
+    content: '';
+    position: absolute;
+    width: 120%;
+    height: 120%;
+    background: linear-gradient(45deg, transparent 45%, rgba(255,255,255,0.15) 50%, transparent 55%);
+    animation: orbShimmer 2.5s infinite linear;
+}
+
+@keyframes orbGlowBreath {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    100% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes orbRotateClockwise {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-@keyframes orbPulse {
-    0% { transform: scale(0.9); opacity: 0.6; }
-    100% { transform: scale(1.1); opacity: 1; }
+
+@keyframes orbRotateCounter {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
 }
-@keyframes orbCorePulse {
-    0% { transform: scale(0.95); box-shadow: 0 0 20px var(--accent-gold), 0 0 40px hsla(52, 100%, 50%, 0.4); }
-    100% { transform: scale(1.05); box-shadow: 0 0 30px var(--accent-gold), 0 0 60px hsla(52, 100%, 50%, 0.7); }
+
+@keyframes orbShimmer {
+    0% { transform: translate(-100%, -100%); }
+    100% { transform: translate(100%, 100%); }
 }
 
 .welcome-greeting {
