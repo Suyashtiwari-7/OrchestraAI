@@ -397,6 +397,15 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
                 else:
                     url = f"https://{url}"
 
+            # If target has a custom protocol scheme (like ms-teams:, mailto:, etc.), force using default system handler
+            scheme_match = re.match(r'^([a-zA-Z0-9.+-]+):', url)
+            is_custom_protocol = False
+            if scheme_match:
+                scheme = scheme_match.group(1).lower()
+                if scheme not in ("http", "https"):
+                    browser = "default"
+                    is_custom_protocol = True
+
             # Validate browser selection
             if browser not in ALLOWED_BROWSERS:
                 browser = "default"
@@ -427,13 +436,14 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
                     }
             else:
                 webbrowser.open(url)
+                details_msg = f"Opened {url} using default system application handler." if is_custom_protocol else f"Opened {url} in default browser."
                 return {
                     "success": True,
                     "action": "open_browser",
                     "target_url": url,
                     "browser": "default",
                     "reasoning": reasoning,
-                    "details": f"Opened {url} in default browser."
+                    "details": details_msg
                 }
 
         elif action == "launch_app":
