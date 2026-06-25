@@ -41,7 +41,7 @@ Your job is to analyze the user's input and classify it into EXACTLY ONE task ca
 
 6. **web_scrape** — The user provides a URL and wants its content fetched, scraped, summarized, or analyzed. Look for URLs (http/https links) in the input.
 
-7. **system_command** — The user wants to trigger local actions on their machine, launch apps, schedule meetings/events, set reminders, set timers, control system settings (volume, brightness), perform file operations, or automate tasks (e.g. play music, send emails, schedule tasks). Keywords: "open", "launch", "run", "start", "schedule", "remind", "set volume", "delete file", "play", "send email".
+7. **system_command** — The user wants to trigger local actions on their machine, launch apps, schedule meetings/events, set reminders, set timers, control system settings (volume, brightness), perform file operations, check/read/reply/send emails and inbox messages, check calendar items, or automate tasks (e.g. play music, send/read/check emails, schedule tasks). Keywords: "open", "launch", "run", "start", "schedule", "remind", "set volume", "delete file", "play", "send email", "read email", "check email", "inbox", "mail".
 
 8. **web_search** — The user asks about current events, news, real-time information, weather, live stock/crypto prices, or questions that require searching the internet/live web for the latest info. Keywords: "news", "current", "weather", "latest", "today", "live price", "search for".
 
@@ -50,7 +50,7 @@ Your job is to analyze the user's input and classify it into EXACTLY ONE task ca
 ## Rules:
 - If the input contains a URL (starts with http:// or https://), classify as "web_scrape".
 - If the input explicitly asks to create/generate/draw an image or visual, classify as "image_generation".
-- If the input is asking to open/launch/run/start local applications, websites, schedule tasks/meetings, set reminders, control system settings, or run shell/Python scripts, classify as "system_command".
+- If the input is asking to open/launch/run/start local applications, websites, schedule tasks/meetings, set reminders, check/read/reply/send emails or read inbox/messages, check calendar events, control system settings, or run shell/Python scripts, classify as "system_command".
 - If the input requires real-time information, current news, weather, live data, or queries starting with "search", classify as "web_search".
 - If unsure between categories, prefer "general".
 - The confidence score should reflect how certain you are (0.0 to 1.0).

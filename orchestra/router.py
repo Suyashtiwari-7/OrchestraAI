@@ -238,6 +238,7 @@ class ModelRouter:
 
         # --- Attempt 2: Fallback model ---
         fallback_provider = self._providers.get(fallback_config.provider)
+        last_error = None
         if fallback_provider:
             try:
                 result = self._execute_text(
@@ -252,63 +253,56 @@ class ModelRouter:
                 decision.provider_actually_used = fallback_config.provider.value
                 return result, decision
             except (RateLimitError, ProviderError) as e:
-                # Fall through to Ollama if available
-                ollama_provider = self._providers.get(ProviderName.OLLAMA)
-                if ollama_provider:
-                    try:
-                        ollama_config = MODELS["local-llama"]
-                        result = self._execute_text(
-                            provider=ollama_provider,
-                            model_config=ollama_config,
-                            prompt=prompt,
-                            system_prompt=system_prompt,
-                            history=history,
-                        )
-                        decision.used_fallback = True
-                        decision.model_actually_used = ollama_config.display_name
-                        decision.provider_actually_used = ollama_config.provider.value
-                        return result, decision
-                    except Exception as oe:
-                        raise ProviderError(
-                            "Router",
-                            f"Both primary ({primary_config.display_name}) and "
-                            f"fallback ({fallback_config.display_name}) failed (Last error: {e}). "
-                            f"Attempted local Ollama fallback but failed: {oe}",
-                        )
-                raise ProviderError(
-                    "Router",
-                    f"Both primary ({primary_config.display_name}) and "
-                    f"fallback ({fallback_config.display_name}) failed. Last error: {e}",
+                console.print(
+                    f"  [yellow][!] Fallback ({fallback_config.display_name}) failed: {e}[/yellow]"
                 )
+                last_error = e
         else:
-            # Check if local Ollama is available as a global fallback
-            ollama_provider = self._providers.get(ProviderName.OLLAMA)
-            if ollama_provider:
+            console.print(
+                f"  [yellow][!] Fallback provider {fallback_config.provider.value} not configured.[/yellow]"
+            )
+            last_error = Exception(f"Fallback provider {fallback_config.provider.value} not configured.")
+
+        # --- Attempt 3: Loop through other available configured fallback providers ---
+        fallback_chain = [
+            (ProviderName.CEREBRAS, "cerebras-llama"),
+            (ProviderName.SAMBANOVA, "sambanova-llama-405b"),
+            (ProviderName.MISTRAL, "mistral-codestral"),
+            (ProviderName.COHERE, "cohere-command-r-plus"),
+            (ProviderName.OLLAMA, "local-llama")
+        ]
+        
+        for provider_name, model_key in fallback_chain:
+            provider_inst = self._providers.get(provider_name)
+            if provider_inst and model_key in MODELS:
                 try:
-                    ollama_config = MODELS["local-llama"]
+                    model_cfg = MODELS[model_key]
+                    console.print(
+                        f"  [yellow][*] Attempting fallback to {provider_name.value} ({model_cfg.display_name})...[/yellow]"
+                    )
                     result = self._execute_text(
-                        provider=ollama_provider,
-                        model_config=ollama_config,
+                        provider=provider_inst,
+                        model_config=model_cfg,
                         prompt=prompt,
                         system_prompt=system_prompt,
                         history=history,
                     )
                     decision.used_fallback = True
-                    decision.model_actually_used = ollama_config.display_name
-                    decision.provider_actually_used = ollama_config.provider.value
+                    decision.model_actually_used = model_cfg.display_name
+                    decision.provider_actually_used = model_cfg.provider.value
                     return result, decision
-                except Exception as e:
-                    raise ProviderError(
-                        "Router",
-                        f"No available providers for task type '{classification.task_type.value}'. "
-                        f"Attempted fallback to local Ollama but failed: {e}"
+                except Exception as fe:
+                    console.print(
+                        f"  [yellow][!] Fallback to {provider_name.value} failed: {fe}[/yellow]"
                     )
-            raise ProviderError(
-                "Router",
-                f"No available providers for task type '{classification.task_type.value}'. "
-                f"Primary: {primary_config.provider.value} (not configured), "
-                f"Fallback: {fallback_config.provider.value} (not configured).",
-            )
+                    last_error = fe
+                    continue
+
+        raise ProviderError(
+            "Router",
+            f"All configured text generation providers failed. Primary ({primary_config.display_name}) "
+            f"and fallback ({fallback_config.display_name}) failed. Last error: {last_error}"
+        )
 
     def route_image(self, prompt: str) -> tuple[ImageResult, RoutingDecision]:
         """

@@ -21,13 +21,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnClearMobile = document.getElementById("clear-chat-mobile");
     const btnExport = document.getElementById("btn-export");
     
-    const overridePills = document.querySelectorAll(".override-pill");
     const quickPromptCards = document.querySelectorAll(".quick-prompt-card");
 
     const userGreetingName = document.getElementById("user-greeting-name");
     const userAvatarBtn = document.getElementById("user-avatar-btn");
-    const activeProviderPill = document.getElementById("active-provider-pill");
-    const providerDropdownMenu = document.getElementById("provider-dropdown-menu");
+    const sidebarToggleDesktop = document.getElementById("sidebar-toggle-desktop");
+    const appContainer = document.querySelector(".app-container");
 
     // Local State
     let activeOverrideProvider = ""; // "gemini", "groq", "cerebras", or ""
@@ -71,33 +70,19 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Active Provider Dropdown Toggle
-    if (activeProviderPill) {
-        activeProviderPill.addEventListener("click", (e) => {
+    // Toggle Sidebar (Desktop view)
+    if (sidebarToggleDesktop) {
+        sidebarToggleDesktop.addEventListener("click", (e) => {
             e.stopPropagation();
-            if (providerDropdownMenu) providerDropdownMenu.classList.toggle("hidden");
+            if (appContainer) appContainer.classList.toggle("sidebar-collapsed");
         });
-    }
-
-    // Hide active provider dropdown when clicking elsewhere
-    document.addEventListener("click", (e) => {
-        if (providerDropdownMenu && !providerDropdownMenu.classList.contains("hidden")) {
-            if (!activeProviderPill.contains(e.target) && !providerDropdownMenu.contains(e.target)) {
-                providerDropdownMenu.classList.add("hidden");
-            }
-        }
-    });
-
-    // Compose / New Chat button handler
+    }    // Compose / New Chat button handler
     if (btnNewChat) {
         btnNewChat.addEventListener("click", () => {
             userInput.value = "";
             userInput.focus();
             chatMessages.innerHTML = "";
             welcomeScreen.classList.remove("hidden");
-            // Switch auto-route visually on new chat
-            const autoRoutePill = document.querySelector('.override-pill[data-provider=""]');
-            if (autoRoutePill) autoRoutePill.click();
         });
     }
 
@@ -106,37 +91,6 @@ document.addEventListener("DOMContentLoaded", () => {
         card.addEventListener("click", () => {
             const prompt = card.getAttribute("data-prompt");
             userInput.value = prompt;
-            userInput.focus();
-        });
-    });
-
-    // Provider override selector pills
-    overridePills.forEach(pill => {
-        pill.addEventListener("click", () => {
-            overridePills.forEach(p => p.classList.remove("active"));
-            pill.classList.add("active");
-            activeOverrideProvider = pill.getAttribute("data-provider");
-            
-            // Hide dropdown
-            if (providerDropdownMenu) providerDropdownMenu.classList.add("hidden");
-
-            // Update visible badge
-            if (activeProviderPill) {
-                const textSpan = activeProviderPill.querySelector(".pill-text");
-                const dotSpan = activeProviderPill.querySelector(".pill-dot");
-                
-                let text = pill.innerText.replace(/^[^\w\s]+/, '').trim();
-                if (textSpan) textSpan.innerText = text;
-                
-                if (dotSpan) {
-                    dotSpan.className = "pill-dot";
-                    if (activeOverrideProvider === "") {
-                        dotSpan.classList.add("auto");
-                    } else {
-                        dotSpan.classList.add(activeOverrideProvider);
-                    }
-                }
-            }
             userInput.focus();
         });
     });
@@ -301,6 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await response.json();
             
             chatHistory = data.history || [];
+            chatMessages.innerHTML = ""; // Clear existing messages
             
             if (chatHistory.length > 0) {
                 welcomeScreen.classList.add("hidden");
@@ -315,6 +270,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     } : null;
                     appendMessageBubble(entry.role, entry.content, meta, false);
                 });
+            } else {
+                welcomeScreen.classList.remove("hidden");
             }
             renderSidebarHistory();
         } catch (error) {
@@ -338,42 +295,250 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Render unique user messages (latest 5) in Today section of history
-    function renderSidebarHistory() {
-        const historyListToday = document.getElementById("history-list-today");
-        if (!historyListToday) return;
-
-        // Clear existing list
-        historyListToday.innerHTML = "";
+    // Helper to calculate date category ("today" or "before")
+    function getCategory(timestamp) {
+        const entryDate = new Date(timestamp);
+        const now = new Date();
         
-        // Find user messages
+        // Set both to midnight to compare days accurately
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const entryMidnight = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
+        
+        const diffTime = todayMidnight - entryMidnight;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays <= 0) {
+            return "today";
+        } else {
+            return "before";
+        }
+    }
+
+    // Render unique user messages in Today and Before sections
+    function renderSidebarHistory() {
+        const sections = {
+            today: {
+                list: document.getElementById("history-list-today"),
+                container: document.getElementById("section-today"),
+                count: 0
+            },
+            before: {
+                list: document.getElementById("history-list-before"),
+                container: document.getElementById("section-before"),
+                count: 0
+            }
+        };
+
+        // Check if elements exist
+        if (!sections.today.list || !sections.before.list) return;
+
+        // Clear all lists
+        Object.keys(sections).forEach(key => {
+            if (sections[key].list) {
+                sections[key].list.innerHTML = "";
+            }
+        });
+
+        // Filter for user messages
         const userMsgs = chatHistory.filter(entry => entry.role === "user");
-        if (userMsgs.length === 0) {
-            // Default mockup item
-            historyListToday.innerHTML = `
-                <div class="history-item active">
-                    <span>Tell us about your capabilities</span>
-                    <button class="item-menu-btn">•••</button>
-                </div>
-            `;
+
+        // Sort descending by timestamp (newest first)
+        const sortedUserMsgs = [...userMsgs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        if (sortedUserMsgs.length === 0) {
+            // Show only Today section with a default mockup item, hide others
+            Object.keys(sections).forEach(key => {
+                if (sections[key].container) {
+                    if (key === "today") {
+                        sections[key].container.classList.remove("hidden");
+                        sections[key].list.innerHTML = `
+                            <div class="history-item active">
+                                <span>Tell us about your capabilities</span>
+                                <button class="item-menu-btn" aria-label="Chat actions">•••</button>
+                            </div>
+                        `;
+                    } else {
+                        sections[key].container.classList.add("hidden");
+                    }
+                }
+            });
             return;
         }
 
-        // Render unique user messages (up to 5 latest) in History section
-        const uniquePrompts = [...new Set(userMsgs.map(m => m.content))].slice(-5).reverse();
-        uniquePrompts.forEach((prompt, idx) => {
+        // Render sorted user messages into their respective sections
+        sortedUserMsgs.forEach((entry, index) => {
+            const category = getCategory(entry.timestamp);
+            const sec = sections[category];
+            if (!sec) return;
+
+            sec.count++;
+
             const item = document.createElement("div");
-            item.className = `history-item ${idx === 0 ? 'active' : ''}`;
+            // Set active class on the very first (newest) history item
+            const isActive = index === 0;
+            const isKept = !!entry.keep;
+            item.className = `history-item ${isActive ? 'active' : ''} ${isKept ? 'kept' : ''}`;
+            item.setAttribute("data-timestamp", entry.timestamp);
+
+            const pinHTML = isKept ? `<span class="history-item-pin-icon">📌</span>` : "";
+
             item.innerHTML = `
-                <span>${prompt}</span>
-                <button class="item-menu-btn">•••</button>
+                <span>${escapeHTML(entry.content)}</span>
+                ${pinHTML}
+                <button class="item-menu-btn" aria-label="Chat actions">•••</button>
             `;
-            item.addEventListener("click", () => {
-                userInput.value = prompt;
+
+            // Click on item text or spacing (excluding 3 dots) to copy to input
+            item.addEventListener("click", (e) => {
+                // If clicked on the menu button, do nothing here
+                if (e.target.classList.contains("item-menu-btn") || e.target.closest(".item-menu-btn")) {
+                    return;
+                }
+                userInput.value = entry.content;
                 userInput.focus();
             });
-            historyListToday.appendChild(item);
+
+            // Menu button click handler
+            const menuBtn = item.querySelector(".item-menu-btn");
+            menuBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                showHistoryContextMenu(e, entry);
+            });
+
+            sec.list.appendChild(item);
         });
+
+        // Hide/show section containers based on entry counts
+        Object.keys(sections).forEach(key => {
+            const sec = sections[key];
+            if (sec.container) {
+                if (sec.count > 0) {
+                    sec.container.classList.remove("hidden");
+                } else {
+                    sec.container.classList.add("hidden");
+                }
+            }
+        });
+    }
+
+    function escapeHTML(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Context Menu for delete and toggle keep
+    function showHistoryContextMenu(e, entry) {
+        // Remove existing dropdown menus
+        const existingMenus = document.querySelectorAll(".history-dropdown-menu");
+        existingMenus.forEach(m => m.remove());
+
+        // Create new dropdown menu
+        const dropdown = document.createElement("div");
+        dropdown.className = "history-dropdown-menu";
+
+        const keepText = entry.keep ? "📌 Unkeep Chat" : "📌 Keep Chat";
+
+        dropdown.innerHTML = `
+            <button class="history-dropdown-item keep" type="button">
+                ${keepText}
+            </button>
+            <button class="history-dropdown-item delete" type="button">
+                🗑️ Delete
+            </button>
+        `;
+
+        // Position the dropdown near the clicked button
+        document.body.appendChild(dropdown);
+        const rect = e.currentTarget.getBoundingClientRect();
+        dropdown.style.top = `${rect.bottom + window.scrollY}px`;
+        // Align dropdown right edge with button right edge
+        dropdown.style.left = `${rect.right - dropdown.offsetWidth + window.scrollX}px`;
+
+        // Prevent body clicks from closing this instantly during the current click event
+        e.stopPropagation();
+
+        // Event listener for Keep / Unkeep
+        dropdown.querySelector(".keep").addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            dropdown.remove();
+            await toggleKeepState(entry.timestamp);
+        });
+
+        // Event listener for Delete
+        dropdown.querySelector(".delete").addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            dropdown.remove();
+            if (confirm("Are you sure you want to delete this chat turn immediately?")) {
+                await deleteChatTurn(entry.timestamp);
+            }
+        });
+    }
+
+    // Close any context menu when clicking outside
+    document.addEventListener("click", (e) => {
+        const openMenus = document.querySelectorAll(".history-dropdown-menu");
+        openMenus.forEach(menu => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+            }
+        });
+    });
+
+    async function toggleKeepState(timestamp) {
+        // Optimistic UI update
+        const entry = chatHistory.find(m => m.timestamp === timestamp);
+        let originalKeep = false;
+        if (entry) {
+            originalKeep = entry.keep;
+            entry.keep = !entry.keep;
+            renderSidebarHistory();
+        }
+
+        try {
+            const response = await fetch("/api/history/toggle_keep", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ timestamp })
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to toggle keep state on server");
+            }
+
+            const data = await response.json();
+            // Sync with actual response
+            if (entry) {
+                entry.keep = data.keep;
+                renderSidebarHistory();
+            }
+        } catch (error) {
+            console.error("Error toggling keep state:", error);
+            // Revert optimistic update
+            if (entry) {
+                entry.keep = originalKeep;
+                renderSidebarHistory();
+            }
+            alert("Error: Could not save the pin state. Please try again.");
+        }
+    }
+
+    async function deleteChatTurn(timestamp) {
+        try {
+            const response = await fetch("/api/history/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ timestamp })
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to delete chat turn on server");
+            }
+
+            // Reload all chat history (clears viewport & re-fetches from backend)
+            await loadChatHistory();
+        } catch (error) {
+            console.error("Error deleting chat turn:", error);
+            alert("Error: Could not delete the chat turn. Please try again.");
+        }
     }
 
     // --- UI Render Helpers ---
@@ -408,7 +573,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (role === "assistant" && text.startsWith("PENDING_TERMINAL_COMMAND:")) {
             isTerminalCommand = true;
             const parts = text.split(":");
-            commandStr = parts[1];
+            try {
+                commandStr = atob(parts[1]); // decode base64
+            } catch (err) {
+                commandStr = parts[1];
+            }
             commandReasoning = parts.slice(2).join(":");
         } else if (role === "assistant" && text.startsWith("PENDING_SANDBOX_CODE:")) {
             isSandboxCode = true;
@@ -524,11 +693,27 @@ document.addEventListener("DOMContentLoaded", () => {
             parsedContent = parseMarkdown(text);
         }
         
+        let actionsHTML = "";
+        if (role === "assistant" && !isTerminalCommand && !isSandboxCode) {
+            actionsHTML = `
+                <div class="chat-bubble-actions">
+                    <button class="bubble-action-btn copy-btn" onclick="copyBubbleText(this)" title="Copy Answer">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+            `;
+        }
+
         wrapper.innerHTML = `
             ${metadataHTML}
             <div class="chat-bubble">
                 ${parsedContent}
                 ${toolsHTML}
+                ${actionsHTML}
             </div>
         `;
         
@@ -862,6 +1047,40 @@ document.addEventListener("DOMContentLoaded", () => {
         button.parentNode.innerHTML = `<span style="color:var(--text-disabled)">✗ Execution rejected by user</span>`;
     };
 
+    window.copyBubbleText = (btn) => {
+        const bubble = btn.closest(".chat-bubble");
+        const clone = bubble.cloneNode(true);
+        
+        // Remove actions container
+        const actionsDiv = clone.querySelector(".chat-bubble-actions");
+        if (actionsDiv) actionsDiv.remove();
+        
+        // Remove image cards or saved lists
+        const imgCard = clone.querySelector(".generated-image-card");
+        if (imgCard) imgCard.remove();
+        const filesList = clone.querySelector(".saved-files-list");
+        if (filesList) filesList.remove();
+        
+        const text = clone.innerText.trim();
+        
+        navigator.clipboard.writeText(text).then(() => {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-green)">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                Copied!
+            `;
+            btn.classList.add("copied");
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove("copied");
+            }, 2000);
+        }).catch(err => {
+            console.error("Failed to copy text: ", err);
+        });
+    };
+
     // --- Speech Recognition & Voice Activation ("Hey DARKI") ---
     let wakeWordRecognition = null;
     let isWakeWordListening = false;
@@ -1028,11 +1247,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     isWakeWordListening = false;
                     wakeWordRecognition.stop();
                     voiceToggleBtn.classList.remove("active");
-                    voiceToggleBtn.innerHTML = "🎙️ Hey DARKI: OFF";
+                    voiceToggleBtn.title = "Hey DARKI: OFF";
                 } else {
                     isWakeWordListening = true;
                     voiceToggleBtn.classList.add("active");
-                    voiceToggleBtn.innerHTML = "🎙️ Hey DARKI: ON";
+                    voiceToggleBtn.title = "Hey DARKI: ON";
                     try {
                         wakeWordRecognition.start();
                         playWakeChime();

@@ -379,7 +379,7 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
                 }
 
         if action == "open_browser":
-            # Sanitize URL: if it doesn't have http/https prefix, add it (except for common targets)
+            # Sanitize URL: if it doesn't have http/https prefix, add it (except for common targets and registered protocol schemes)
             url = target
             if not url.startswith("http://") and not url.startswith("https://"):
                 # Check for popular aliases
@@ -391,6 +391,9 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
                     url = "https://google.com"
                 elif "github" in url.lower():
                     url = "https://github.com"
+                elif re.match(r'^[a-zA-Z0-9.+-]+:', url):
+                    # Already has a protocol scheme (like ms-teams:, mailto:, spotify:) - do not prepend https://
+                    pass
                 else:
                     url = f"https://{url}"
 
@@ -682,7 +685,7 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
             }
 
         elif action == "read_inbox":
-            count = data.get("email_index") or 5
+            count = data.get("email_index") or 20
             try:
                 emails = read_inbox(count=int(count))
                 email_summaries = []
@@ -1008,12 +1011,19 @@ def schedule_meeting_handler(subject: str, date_str: str, time_str: str, duratio
     return create_ics_file_and_open(subject, date_str, time_str, duration_minutes, body)
 
 def set_reminder_handler(message: str, date_str: str, time_str: str) -> Dict[str, Any]:
-    """Tries creating an Outlook Task with active alert; falls back to Windows Task Scheduler."""
+    """Tries creating an Outlook Task with active alert; falls back to Windows Task Scheduler and launches Microsoft To Do app."""
     # Try Outlook Task COM first
     res = create_outlook_task(message, date_str, time_str, "Reminder created by OrchestraAI")
     if res["success"]:
         return res
         
+    # Launch local Microsoft To Do desktop app if installed
+    try:
+        import subprocess
+        subprocess.Popen(["cmd.exe", "/c", "start mstodo:"], shell=True)
+    except Exception:
+        pass
+
     # Fallback to Windows native PowerShell scheduled task/toast
     return schedule_windows_toast(message, date_str, time_str)
 

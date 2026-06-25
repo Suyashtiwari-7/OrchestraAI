@@ -140,6 +140,29 @@ def read_file_content(filepath: str, max_chars: int = 5000) -> Dict[str, Any]:
     """Read and return the content of a text file."""
     try:
         path = Path(filepath)
+        
+        # If relative path doesn't exist, search common user directories
+        if not path.exists() and not path.is_absolute():
+            paths_to_check = [
+                Path.home() / filepath,
+                Path.home() / "Desktop" / filepath,
+                Path.home() / "Documents" / filepath,
+                Path.home() / "Downloads" / filepath
+            ]
+            try:
+                from orchestra.config import settings
+                paths_to_check.insert(0, Path(settings.project_root) / filepath)
+            except Exception:
+                pass
+                
+            for p in paths_to_check:
+                try:
+                    if p.exists() and p.is_file():
+                        path = p
+                        break
+                except Exception:
+                    continue
+
         if not path.exists():
             return {"success": False, "error": f"File not found: {filepath}"}
         if not path.is_file():

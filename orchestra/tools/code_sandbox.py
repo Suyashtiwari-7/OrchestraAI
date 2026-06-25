@@ -13,7 +13,7 @@ from typing import Dict, Any
 
 from orchestra.config import settings
 
-def execute_python_sandbox(code_content: str, timeout: float = 10.0) -> Dict[str, Any]:
+def execute_python_sandbox(code_content: str, timeout: float = 30.0) -> Dict[str, Any]:
     """
     Writes python code to a temporary file, executes it in a separate Python 
     subprocess, captures output and error streams, and handles timeouts.

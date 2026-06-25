@@ -222,47 +222,223 @@ def send_email(to: str, subject: str, body: str, cc: str = "", bcc: str = "",
         return _mailto_fallback(to, subject, body, cc, bcc)
 
 
+def _read_inbox_imap(count: int = 5) -> List[Dict[str, Any]]:
+    """Fetch emails from all configured IMAP accounts."""
+    import imaplib
+    import email
+    from email.header import decode_header
+    from ..config import settings
+
+    accounts = settings.get_imap_accounts()
+    if not accounts:
+        logger.info("No IMAP accounts configured.")
+        return []
+
+    all_emails = []
+    errors = []
+
+    for acc in accounts:
+        server = acc["server"]
+        port = acc["port"]
+        user = acc["email"]
+        password = acc["password"]
+
+        try:
+            logger.info(f"Connecting to IMAP server {server}:{port} for {user}...")
+            mail = imaplib.IMAP4_SSL(server, port, timeout=15)
+            mail.login(user, password)
+            mail.select("inbox")
+
+            status, messages = mail.search(None, "ALL")
+            if status != "OK" or not messages[0]:
+                mail.close()
+                mail.logout()
+                continue
+
+            mail_ids = messages[0].split()
+            mail_ids = mail_ids[::-1][:count]  # Get latest count items
+
+            for mail_id in mail_ids:
+                status, data = mail.fetch(mail_id, "(RFC822)")
+                if status != "OK":
+                    continue
+
+                for response_part in data:
+                    if isinstance(response_part, tuple):
+                        msg = email.message_from_bytes(response_part[1])
+
+                        # Decode Subject
+                        subject = "(No Subject)"
+                        if msg["Subject"]:
+                            try:
+                                decoded = decode_header(msg["Subject"])
+                                sub_parts = []
+                                for part, enc in decoded:
+                                    if isinstance(part, bytes):
+                                        sub_parts.append(part.decode(enc or "utf-8", errors="ignore"))
+                                    else:
+                                        sub_parts.append(part)
+                                subject = "".join(sub_parts)
+                            except Exception:
+                                subject = str(msg["Subject"])
+
+                        # Decode From
+                        sender = "Unknown"
+                        if msg["From"]:
+                            try:
+                                decoded = decode_header(msg["From"])
+                                from_parts = []
+                                for part, enc in decoded:
+                                    if isinstance(part, bytes):
+                                        from_parts.append(part.decode(enc or "utf-8", errors="ignore"))
+                                    else:
+                                        from_parts.append(part)
+                                sender = "".join(from_parts)
+                            except Exception:
+                                sender = str(msg["From"])
+
+                        # Extract body/preview
+                        body = ""
+                        if msg.is_multipart():
+                            for part in msg.walk():
+                                content_type = part.get_content_type()
+                                content_disposition = str(part.get("Content-Disposition"))
+                                if content_type == "text/plain" and "attachment" not in content_disposition:
+                                    try:
+                                        body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                                        break
+                                    except Exception:
+                                        pass
+                        else:
+                            try:
+                                body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+                            except Exception:
+                                pass
+
+                        preview = body[:200].strip() if body else "(No content preview available)"
+                        date_str = msg["Date"] or ""
+
+                        all_emails.append({
+                            "subject": subject,
+                            "sender": sender,
+                            "sender_email": sender,
+                            "received": date_str,
+                            "received_raw": date_str,
+                            "preview": preview,
+                            "unread": False,
+                            "account": user,
+                        })
+            mail.close()
+            mail.logout()
+            logger.info(f"Successfully fetched emails from {user}")
+        except Exception as e:
+            logger.error(f"IMAP read failed for {user}: {e}")
+            errors.append(f"{user}: {e}")
+
+    if not all_emails and errors:
+        raise RuntimeError(f"IMAP connection failed for all accounts: {'; '.join(errors)}")
+
+    # Sort by date string (newest first), re-index
+    all_emails.sort(key=lambda x: str(x.get("received_raw", "")), reverse=True)
+    final = []
+    for idx, em in enumerate(all_emails[:count]):
+        em["index"] = idx + 1
+        final.append(em)
+
+    return final
+
+
 def read_inbox(count: int = 5, folder: str = "Inbox") -> List[Dict[str, Any]]:
     """
-    Read recent emails from the Outlook inbox.
-    
-    Args:
-        count: Number of recent emails to fetch.
-        folder: Outlook folder name (default: "Inbox").
-    
-    Returns:
-        List of email summaries.
+    Read recent emails from all available Outlook store inboxes.
+    Falls back to IMAP configuration if Outlook COM connection fails.
     """
+    outlook_err = None
     try:
         outlook = _get_outlook()
         namespace = outlook.GetNamespace("MAPI")
-        inbox = namespace.GetDefaultFolder(6)  # 6 = olFolderInbox
+    except Exception as e:
+        outlook_err = e
+        logger.warning(f"Failed to connect to Outlook COM: {e}")
 
-        messages = inbox.Items
-        messages.Sort("[ReceivedTime]", True)  # Most recent first
+    if outlook_err:
+        from ..config import settings
+        accounts = settings.get_imap_accounts()
+        if accounts:
+            logger.info("Outlook COM connection failed; falling back to configured IMAP accounts.")
+            return _read_inbox_imap(count)
+        else:
+            raise RuntimeError(
+                f"Could not connect to Outlook COM. Please verify Outlook is installed and open. "
+                f"Alternatively, configure IMAP credentials (IMAP_ACCOUNTS or IMAP_SERVER/IMAP_EMAIL/IMAP_PASSWORD) in your .env file to fetch emails directly from the server. "
+                f"Original error: {outlook_err}"
+            )
 
-        emails = []
-        for i, msg in enumerate(messages):
-            if i >= count:
+    all_emails = []
+    default_inbox = None
+    
+    # 1. Try default inbox first
+    try:
+        default_inbox = namespace.GetDefaultFolder(6)  # 6 = olFolderInbox
+        if default_inbox:
+            _extract_from_folder(default_inbox, all_emails, count)
+    except Exception:
+        pass
+
+    # 2. Scan all store folders for other Inbox folders
+    try:
+        for store in namespace.Stores:
+            try:
+                root = store.GetRootFolder()
+                for f in root.Folders:
+                    if f.Name.lower() in ("inbox", "received", "boîte de réception", "posteingang"):
+                        if default_inbox and f.EntryID == default_inbox.EntryID:
+                            continue
+                        _extract_from_folder(f, all_emails, count)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # Sort all collected emails by received time, newest first
+    try:
+        all_emails.sort(key=lambda x: str(x.get("received_raw", "")), reverse=True)
+    except Exception:
+        pass
+
+    # Re-index
+    final_emails = []
+    for idx, em in enumerate(all_emails[:count]):
+        em["index"] = idx + 1
+        final_emails.append(em)
+
+    return final_emails
+
+
+
+def _extract_from_folder(folder, emails_list, max_count):
+    try:
+        messages = folder.Items
+        messages.Sort("[ReceivedTime]", True)
+        c = 0
+        for msg in messages:
+            if c >= max_count:
                 break
             try:
-                emails.append({
-                    "index": i + 1,
+                emails_list.append({
                     "subject": msg.Subject or "(No Subject)",
                     "sender": msg.SenderName or "Unknown",
                     "sender_email": msg.SenderEmailAddress or "",
                     "received": str(msg.ReceivedTime),
+                    "received_raw": msg.ReceivedTime,
                     "preview": (msg.Body or "")[:200].strip(),
                     "unread": msg.UnRead,
                 })
+                c += 1
             except Exception:
                 continue
-
-        return emails
-
-    except Exception as e:
-        logger.error(f"Failed to read inbox: {e}")
-        return []
+    except Exception:
+        pass
 
 
 def reply_to_email(index: int, reply_body: str, reply_all: bool = False) -> Dict[str, Any]:

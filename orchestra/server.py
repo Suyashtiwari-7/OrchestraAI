@@ -79,9 +79,10 @@ Action Types and Parameters:
 
 Parser Priority & Agentic Scripting Rules:
 - **General OS-Level Automation fallback**: For any custom, complex, or arbitrary task that does not fit a built-in action type (such as scheduling a meeting, setting system alerts, playbacks, controlling other apps, searching local files, modifying custom settings), you MUST choose "run_python" or "run_terminal" and generate a complete script/command to perform it.
-- **Outlook Calendar/Meeting Scheduling**: When the user requests to schedule a meeting, event, or calendar item, you MUST choose "run_python" and write a script that attempts to automate Outlook Calendar using `win32com.client` (AppointmentItem type 1), with a fallback to generating and opening a local `.ics` file (using the standard iCalendar structure) if Outlook COM is unavailable.
-- **Local Reminders/Timers**: When asked to set a reminder or timer (e.g. "remind me to stand up in 5 minutes"), you MUST choose "run_python" and write a script to schedule a native Windows Task Scheduler entry (via Register-ScheduledTask in PowerShell or Task Scheduler COM) that triggers a PowerShell graphical notification box showing your custom message at the designated target datetime.
-- **App Automation/Controls**: When asked to play music or search inside a specific app (e.g. Spotify, YouTube), write a script or command to open the browser search URL, or trigger the app's protocol scheme (e.g. `start spotify:search:jazz`).
+- **Calendar & Meetings**: When the user requests to schedule a meeting or event, you MUST choose "schedule_meeting" action. The backend will automatically try Outlook Calendar or fall back to standard calendar event (.ics) files.
+- **Reminders & Timers**: When asked to set a reminder or timer, you MUST choose the "set_reminder" action. The backend will automatically try Outlook Tasks or fall back to native Windows system scheduler alerts.
+- **App Automation/Controls**: When asked to play music or search inside a specific app (e.g. Spotify, YouTube, Teams), write a script or command to open the browser search URL, or trigger the app's protocol scheme. For launching Microsoft Teams chat with a user, choose "open_browser" action with target "ms-teams:/l/chat/0/0?users=<email_address>&message=<message_body>". Since it is a protocol handler, the system will open it directly. Do not use terminal execution for Teams chat links to avoid command shell parsing errors.
+- **Local App Routing**: Prioritize routing tasks to the local desktop apps listed as installed in the user profile context (e.g., Microsoft Outlook, Microsoft To Do, Brave browser, VLC, Spotify).
 
 Response Format:
 You MUST respond with a single JSON object. No markdown wrapping, no code blocks, no ```json formatting, no other explanation or text.
@@ -91,7 +92,7 @@ JSON Structure:
   "action": "<action_type>",
   "target": "<target_value_or_code_or_command>",
   "browser": "brave" | "chrome" | "edge" | "default" | null,
-  "reasoning": "<A user-friendly, natural language summary of what is about to happen, written in simple present continuous tense, e.g., 'Setting up a reminder of meeting on Outlook for tomorrow, June 17th, at 12:00 PM'>",
+  "reasoning": "<A very simple, non-technical, human-friendly explanation of the proposed action. Do NOT use code syntax, command lines, or generic technical jargon (like 'local system', 'command prompt', or 'Windows task scheduler'). Instead, state the specific application name (e.g., 'MS To Do List', 'Outlook Calendar', 'Windows Clock'), the task description, exact dates/times, and the notification channel that will notify the user if applicable (e.g., 'via Outlook email alert', 'via desktop push notification', or 'via WhatsApp' if specified by user). For example: 'Setting up a reminder on MS To Do List for: Meeting tomorrow (June 22, 2026) at 12:00 PM, which will notify you on your laptop.' or 'Scheduling a meeting on Outlook Calendar: Sync with team on June 23 at 3:00 PM (notifies you by email).'>",
   "email_to": "<recipient_email_or_null>",
   "email_subject": "<subject_or_null>",
   "email_body": "<body_or_null>",
@@ -112,6 +113,47 @@ classifier = TaskClassifier()
 router = ModelRouter()
 memory = SessionMemory()
 profile_memory = UserProfileMemory()
+
+# Auto-scan installed apps and save to user profile facts
+try:
+    from .tools.system_executor import check_app_installation_status, get_browser_path
+    
+    app_keys_to_scan = {
+        "outlook": "Microsoft Outlook desktop app",
+        "todo": "Microsoft To Do desktop app",
+        "spotify": "Spotify app",
+        "whatsapp": "WhatsApp app",
+        "vlc": "VLC Media Player app"
+    }
+    for app_key, display_name in app_keys_to_scan.items():
+        try:
+            status = check_app_installation_status(app_key)
+            if status.get("installed"):
+                profile_memory.add_fact(f"{display_name} is installed on this machine.")
+            else:
+                if f"{display_name} is installed on this machine." in profile_memory._facts:
+                    profile_memory._facts.remove(f"{display_name} is installed on this machine.")
+                    profile_memory._save()
+        except Exception:
+            pass
+            
+    browsers_to_scan = ["brave", "chrome", "edge"]
+    for browser in browsers_to_scan:
+        try:
+            browser_path = get_browser_path(browser)
+            display_name = f"{browser.capitalize()} browser"
+            if browser == "brave":
+                display_name = "Brave browser"
+            if browser_path:
+                profile_memory.add_fact(f"{display_name} is installed on this machine.")
+            else:
+                if f"{display_name} is installed on this machine." in profile_memory._facts:
+                    profile_memory._facts.remove(f"{display_name} is installed on this machine.")
+                    profile_memory._save()
+        except Exception:
+            pass
+except Exception as e:
+    logger.error(f"Error scanning installed apps on startup: {e}")
 
 app = FastAPI(
     title="OrchestraAI Server",
@@ -142,6 +184,9 @@ class ExecuteSandboxRequest(BaseModel):
 
 class InstallAppRequest(BaseModel):
     app_id: str
+
+class HistoryItemActionRequest(BaseModel):
+    timestamp: str
 
 
 class EmailDraftRequest(BaseModel):
@@ -282,6 +327,7 @@ def get_history():
             "provider": entry.provider,
             "task_type": entry.task_type,
             "timestamp": entry.timestamp,
+            "keep": getattr(entry, "keep", False),
         })
     return {"history": entries}
 
@@ -304,6 +350,26 @@ def clear_history():
     """Clear conversation history."""
     memory.clear()
     return {"success": True, "message": "Conversation history cleared."}
+
+@app.post("/api/history/delete")
+def delete_history_item(req: HistoryItemActionRequest):
+    """Delete a specific chat turn by its user message timestamp."""
+    success = memory.delete_turn(req.timestamp)
+    if not success:
+        raise HTTPException(status_code=404, detail="Chat history item not found.")
+    return {"success": True, "message": "Chat history item deleted."}
+
+@app.post("/api/history/toggle_keep")
+def toggle_keep_history_item(req: HistoryItemActionRequest):
+    """Toggle the keep/pinned flag for a specific chat turn."""
+    toggled_status = memory.toggle_keep(req.timestamp)
+    if toggled_status is None:
+        raise HTTPException(status_code=404, detail="Chat history item not found.")
+    return {
+        "success": True, 
+        "keep": toggled_status, 
+        "message": f"Chat history item keep state set to {toggled_status}."
+    }
 
 @app.post("/api/email/draft")
 def api_draft_email(req: EmailDraftRequest):
@@ -800,7 +866,10 @@ def chat(request: ChatRequest):
         try:
             from datetime import datetime
             now_str = datetime.now().strftime("%Y-%m-%d %I:%M %p (%A)")
+            sys_context = profile_memory.get_system_context()
             dynamic_system_prompt = SYSTEM_COMMAND_PROMPT + f"\n\nContext: The current local time on the user's machine is: {now_str}."
+            if sys_context:
+                dynamic_system_prompt += sys_context
 
             result, decision = router.route_text(
                 prompt=f"Parse this system action request:\n\n{cmd_prompt}",
@@ -814,7 +883,8 @@ def chat(request: ChatRequest):
 
             if exec_res.get("success"):
                 if exec_res.get("action") == "run_terminal":
-                    response_text = f"PENDING_TERMINAL_COMMAND:{exec_res.get('command')}:{exec_res.get('reasoning')}"
+                    encoded_cmd = base64.b64encode(exec_res.get('command').encode('utf-8')).decode('utf-8')
+                    response_text = f"PENDING_TERMINAL_COMMAND:{encoded_cmd}:{exec_res.get('reasoning')}"
                 elif exec_res.get("action") == "run_python":
                     encoded_code = base64.b64encode(exec_res.get('command').encode('utf-8')).decode('utf-8')
                     response_text = f"PENDING_SANDBOX_CODE:{encoded_code}:{exec_res.get('reasoning')}"
@@ -838,6 +908,26 @@ def chat(request: ChatRequest):
                 elif exec_res.get("action") == "file_delete":
                     filepath = exec_res.get("path")
                     response_text = f"PENDING_FILE_DELETE:{filepath}"
+                elif exec_res.get("action") == "read_inbox":
+                    emails_details = exec_res.get("details", "")
+                    summary_prompt = (
+                        f"You are J.A.R.V.I.S., the user's intelligent AI assistant.\n"
+                        f"The user asked: '{cmd_prompt}'.\n"
+                        f"Here is the raw list of recent emails retrieved from their local Outlook:\n\n"
+                        f"{emails_details}\n\n"
+                        f"Please analyze these emails. Distinguish between mass newsletters/promotions/job alerts (like generic Naukri or LinkedIn alerts) and direct personal/important emails (like job offer letters, university offer letters/updates, interview schedules, submission deadlines, calendar invites, or direct messages from human contacts).\n"
+                        f"Provide a clean, smart, highly professional J.A.R.V.I.S.-style summary. Clearly highlight anything important (categorize them logically) and group the minor updates/newsletters briefly."
+                    )
+                    try:
+                        summary_res, _ = router.route_text(
+                            prompt=summary_prompt,
+                            classification=classification,
+                            system_prompt="You are J.A.R.V.I.S., Tony Stark's intelligent AI assistant.",
+                            history=None
+                        )
+                        response_text = f"📬 **J.A.R.V.I.S. Email Analysis**\n\n{summary_res.content}"
+                    except Exception as e:
+                        response_text = f"💻 **System Command Executed Successfully**\n\n* **Reasoning**: {exec_res.get('reasoning')}\n* **Details**: {exec_res.get('details')}"
                 else:
                     response_text = f"💻 **System Command Executed Successfully**\n\n* **Reasoning**: {exec_res.get('reasoning')}\n* **Details**: {exec_res.get('details')}"
                 

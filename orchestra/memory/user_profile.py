@@ -89,6 +89,12 @@ class UserProfileMemory:
 
         return new_facts
 
+    def add_fact(self, fact: str):
+        """Manually add a fact to the profile."""
+        if fact not in self._facts:
+            self._facts.append(fact)
+            self._save()
+
     def get_system_context(self) -> str:
         """Format saved facts to inject as context into LLM system prompts."""
         if not self._facts:

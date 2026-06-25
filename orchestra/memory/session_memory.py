@@ -24,6 +24,7 @@ class MemoryEntry:
     provider: str = ""    # Which provider was used
     task_type: str = ""   # Classification result
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    keep: bool = False    # Whether this turn is kept permanently (exempt from auto-delete)
 
 
 class SessionMemory:
@@ -32,7 +33,7 @@ class SessionMemory:
 
     Manages a rolling window of conversation turns, keeping
     the most recent N turns to stay within token limits.
-    Prunes history entries older than 7 days.
+    Prunes history entries older than 15 days, unless marked as kept.
     """
 
     def __init__(self, max_turns: Optional[int] = None):
@@ -51,7 +52,7 @@ class SessionMemory:
         return settings.project_root / "output" / "history.json"
 
     def _load_from_disk(self):
-        """Load conversation history from disk and prune entries older than 7 days."""
+        """Load conversation history from disk and prune entries older than 15 days."""
         try:
             file_path = self._history_file
             if file_path.exists():
@@ -64,7 +65,8 @@ class SessionMemory:
                             model_used=item.get("model_used", ""),
                             provider=item.get("provider", ""),
                             task_type=item.get("task_type", ""),
-                            timestamp=item.get("timestamp", datetime.now().isoformat())
+                            timestamp=item.get("timestamp", datetime.now().isoformat()),
+                            keep=item.get("keep", False)
                         )
                         self._history.append(entry)
                 self._prune_old_entries()
@@ -87,6 +89,7 @@ class SessionMemory:
                     "provider": entry.provider,
                     "task_type": entry.task_type,
                     "timestamp": entry.timestamp,
+                    "keep": entry.keep,
                 }
                 for entry in self._history
             ]
@@ -97,15 +100,20 @@ class SessionMemory:
             pass
 
     def _prune_old_entries(self):
-        """Prune any entries older than 7 days (1 week)."""
+        """Prune any entries older than 15 days, unless marked as kept."""
         now = datetime.now()
-        one_week_ago = now - timedelta(days=7)
+        fifteen_days_ago = now - timedelta(days=15)
         
         new_history = []
         for entry in self._history:
             try:
+                # If marked as kept, always preserve it
+                if getattr(entry, "keep", False):
+                    new_history.append(entry)
+                    continue
+                    
                 entry_time = datetime.fromisoformat(entry.timestamp)
-                if entry_time >= one_week_ago:
+                if entry_time >= fifteen_days_ago:
                     new_history.append(entry)
             except Exception:
                 # Keep if timestamp format is not standard
@@ -141,6 +149,37 @@ class SessionMemory:
         self._prune_old_entries()
         self._trim()
         self._save_to_disk()
+
+    def delete_turn(self, timestamp: str) -> bool:
+        """
+        Delete a specific turn (user message matching timestamp + following assistant message).
+        """
+        for idx, entry in enumerate(self._history):
+            if entry.role == "user" and entry.timestamp == timestamp:
+                # Remove user message
+                self._history.pop(idx)
+                # If next message is assistant, remove it too
+                if idx < len(self._history) and self._history[idx].role == "assistant":
+                    self._history.pop(idx)
+                self._save_to_disk()
+                return True
+        return False
+
+    def toggle_keep(self, timestamp: str) -> Optional[bool]:
+        """
+        Toggle keep flag on a specific user message and its corresponding assistant message.
+        """
+        toggled = None
+        for idx, entry in enumerate(self._history):
+            if entry.role == "user" and entry.timestamp == timestamp:
+                entry.keep = not getattr(entry, "keep", False)
+                toggled = entry.keep
+                # Also toggle for the corresponding assistant response if it exists
+                if idx + 1 < len(self._history) and self._history[idx+1].role == "assistant":
+                    self._history[idx+1].keep = entry.keep
+                self._save_to_disk()
+                break
+        return toggled
 
     def get_history(self) -> list[dict]:
         """
@@ -199,6 +238,7 @@ class SessionMemory:
                 "provider": entry.provider,
                 "task_type": entry.task_type,
                 "timestamp": entry.timestamp,
+                "keep": entry.keep,
             }
             for entry in self._history
         ]

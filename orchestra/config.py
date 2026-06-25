@@ -215,8 +215,8 @@ ROUTING_TABLE: dict[TaskType, RouteConfig] = {
         description="General conversation and Q&A",
     ),
     TaskType.SYSTEM_COMMAND: RouteConfig(
-        primary="groq-llama",
-        fallback="gemini-2.0-flash",
+        primary="local-llama",
+        fallback="groq-llama",
         description="Launch local applications or open websites in specific browsers",
     ),
     TaskType.WEB_SEARCH: RouteConfig(
@@ -314,6 +314,109 @@ class AppSettings:
     smtp_port: int = field(default_factory=lambda: int(os.getenv("SMTP_PORT", "587")) if os.getenv("SMTP_PORT") else 587)
     smtp_email: Optional[str] = field(default_factory=lambda: os.getenv("SMTP_EMAIL"))
     smtp_password: Optional[str] = field(default_factory=lambda: os.getenv("SMTP_PASSWORD"))
+
+    # IMAP Settings (Optional, for background email checking fallback)
+    # Supports multi-account via IMAP_ACCOUNTS JSON, or single account via individual vars.
+    imap_server: Optional[str] = field(default_factory=lambda: os.getenv("IMAP_SERVER"))
+    imap_port: int = field(default_factory=lambda: int(os.getenv("IMAP_PORT", "993")) if os.getenv("IMAP_PORT") else 993)
+    imap_email: Optional[str] = field(default_factory=lambda: os.getenv("IMAP_EMAIL"))
+    imap_password: Optional[str] = field(default_factory=lambda: os.getenv("IMAP_PASSWORD"))
+
+    def get_imap_accounts(self) -> list:
+        """Return list of IMAP account dicts dynamically scanned & configured with passwords."""
+        import json as _json
+        import logging as _logging
+        from .tools.email_discovery import discover_system_emails
+
+        logger = _logging.getLogger("orchestra.config")
+
+        # 1. Perform dynamic scan of the system to find all active/logged-in email addresses
+        discovered_emails = discover_system_emails()
+
+        # 2. Retrieve password mappings from env
+        password_map = {}
+
+        # Fallback A: Read from IMAP_PASSWORDS JSON dictionary
+        raw_passwords = os.getenv("IMAP_PASSWORDS")
+        if raw_passwords:
+            try:
+                parsed_passwords = _json.loads(raw_passwords)
+                if isinstance(parsed_passwords, dict):
+                    for email_key, pwd in parsed_passwords.items():
+                        password_map[email_key.lower().strip()] = pwd
+            except Exception as e:
+                logger.error(f"Error parsing IMAP_PASSWORDS JSON: {e}")
+
+        # Fallback B: Read from IMAP_ACCOUNTS JSON list (to reuse existing configured passwords)
+        raw_accounts = os.getenv("IMAP_ACCOUNTS")
+        if raw_accounts:
+            try:
+                parsed_accounts = _json.loads(raw_accounts)
+                if isinstance(parsed_accounts, list):
+                    for acc in parsed_accounts:
+                        email_key = acc.get("email", "").lower().strip()
+                        if email_key and acc.get("password"):
+                            password_map[email_key] = acc["password"]
+            except Exception:
+                pass
+
+        # Fallback C: Read from individual env variables if set
+        if self.imap_email and self.imap_password:
+            password_map[self.imap_email.lower().strip()] = self.imap_password
+
+        # 3. Match discovered emails against configured passwords
+        # Discard temporary domains and accounts that do not have passwords configured.
+        temp_domains = {"daypey.com", "advitize.com", "mailinator.com", "10minutemail.com", "tempmail.com"}
+        
+        accounts = []
+        for email in discovered_emails:
+            # Skip if it is a known temp/disposable email domain
+            domain = email.split("@")[-1] if "@" in email else ""
+            if domain in temp_domains:
+                continue
+
+            password = password_map.get(email)
+            if not password or "YOUR_" in password or "PASSWORD" in password:
+                # No password set for this discovered email, or it's a placeholder
+                continue
+
+            # Resolve IMAP server and port dynamically based on domain
+            server = "imap.gmail.com"  # Default fallback (covers Gmail and vupune.ac.in Workspace)
+            port = 993
+
+            # Standard email hosts lookup
+            if any(d in email for d in ("@outlook.com", "@hotmail.com", "@live.com")):
+                server = "imap-mail.outlook.com"
+            elif "@yahoo.com" in email:
+                server = "imap.mail.yahoo.com"
+            elif "@icloud.com" in email:
+                server = "imap.mail.me.com"
+
+            # Allow server override if specified in IMAP_ACCOUNTS
+            if raw_accounts:
+                try:
+                    parsed_accounts = _json.loads(raw_accounts)
+                    if isinstance(parsed_accounts, list):
+                        for acc in parsed_accounts:
+                            if acc.get("email", "").lower().strip() == email:
+                                if acc.get("server"):
+                                    server = acc["server"]
+                                if acc.get("port"):
+                                    port = int(acc["port"])
+                except Exception:
+                    pass
+
+            accounts.append({
+                "server": server,
+                "port": port,
+                "email": email,
+                "password": password
+            })
+
+        logger.info(f"Dynamically loaded {len(accounts)} configured email accounts for monitoring.")
+        return accounts
+
+
 
     def ensure_dirs(self):
         """Create output directories if they don't exist."""

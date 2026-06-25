@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import (
     Qt, QPoint, QTimer, QSize, pyqtSignal, QThread, QPropertyAnimation,
-    QEasingCurve, QRect,
+    QEasingCurve, QRect, QEvent,
 )
 from PyQt6.QtGui import (
     QPixmap, QPainter, QColor, QFont, QIcon, QBrush, QPen,
@@ -49,6 +49,52 @@ COLORS = {
 }
 
 API_BASE = "http://127.0.0.1:8000"
+
+
+def parse_edited_fields(text: str) -> dict:
+    """Parses key-value headers and body/message from edited text."""
+    lines = text.split("\n")
+    fields = {}
+    body_lines = []
+    parsing_body = False
+    
+    for line in lines:
+        if parsing_body:
+            body_lines.append(line)
+            continue
+            
+        stripped = line.strip()
+        if stripped == "":
+            parsing_body = True
+            continue
+            
+        lower_line = stripped.lower()
+        if lower_line.startswith("to:"):
+            fields["to"] = stripped[3:].strip()
+        elif lower_line.startswith("subject:"):
+            fields["subject"] = stripped[8:].strip()
+        elif lower_line.startswith("date:"):
+            fields["date"] = stripped[5:].strip()
+        elif lower_line.startswith("time:"):
+            fields["time"] = stripped[5:].strip()
+        elif lower_line.startswith("duration:"):
+            dur_str = stripped[9:].replace("minutes", "").replace("mins", "").replace("minute", "").strip()
+            fields["duration"] = int(dur_str) if dur_str.isdigit() else 60
+        elif lower_line.startswith("message:"):
+            fields["message"] = stripped[8:].strip()
+        elif lower_line.startswith("code:"):
+            parsing_body = True
+            body_lines.append(stripped[5:].strip())
+        elif lower_line.startswith("command:"):
+            parsing_body = True
+            body_lines.append(stripped[8:].strip())
+        else:
+            # If no header matches, treat it as starting the body
+            parsing_body = True
+            body_lines.append(line)
+            
+    fields["body"] = "\n".join(body_lines).strip()
+    return fields
 
 
 # ============================================================
@@ -282,9 +328,11 @@ class ChatBubblePopup(QWidget):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.resize(360, 300)
-        self.setMinimumSize(320, 240)
-        self.setMaximumSize(800, 600)
+        self.setMouseTracking(True)
+        self.resize(400, 450)
+        self.setMinimumSize(320, 350)
+        self.setMaximumSize(1200, 900)
+        self.chat_history = []
         self._setup_ui()
 
     def _setup_ui(self):
@@ -470,25 +518,167 @@ class ChatBubblePopup(QWidget):
         shadow.setColor(QColor(0, 0, 0, 120))
         shadow.setOffset(0, 5)
         self.card.setGraphicsEffect(shadow)
+        self.card.installEventFilter(self)
+        self.card.setMouseTracking(True)
 
     def _on_send(self):
         text = self.input_field.text().strip()
         if text:
             self.input_field.clear()
+            self.chat_history.append({"sender": "user", "text": text})
+            self._update_chat_display()
             self.send_message.emit(text)
 
     def set_response(self, text: str):
         """Display response text, stripping markdown artifacts."""
         clean = text.replace("**", "").replace("`", "")
-        self.response_area.setPlainText(clean)
+        # Remove any lingering "Processing request..." message
+        if self.chat_history and self.chat_history[-1]["text"] == "✨ Processing request...":
+            self.chat_history.pop()
+        self.chat_history.append({"sender": "bot", "text": clean})
+        self._update_chat_display()
 
     def set_loading(self, loading: bool):
         if loading:
-            self.response_area.setPlainText("✨ Processing request...")
+            self.chat_history.append({"sender": "bot", "text": "✨ Processing request..."})
+            self._update_chat_display()
             self.input_field.setEnabled(False)
         else:
+            if self.chat_history and self.chat_history[-1]["text"] == "✨ Processing request...":
+                self.chat_history.pop()
+            self._update_chat_display()
             self.input_field.setEnabled(True)
             self.input_field.setFocus()
+
+    def _update_chat_display(self):
+        html = """
+        <html>
+        <head>
+        <style>
+          body {
+            background-color: transparent;
+            margin: 0;
+            padding: 0;
+          }
+          .chat-container {
+            font-family: 'Segoe UI', 'Outfit', sans-serif;
+            font-size: 13px;
+          }
+          .msg-box {
+            margin: 6px 0px;
+            width: 100%;
+          }
+          .bubble {
+            padding: 8px 12px;
+            border-radius: 12px;
+            display: inline-block;
+            max-width: 85%;
+            line-height: 1.4;
+          }
+          .user-bubble {
+            background-color: rgba(59, 130, 246, 0.85);
+            color: #ffffff;
+            float: right;
+            border-top-right-radius: 2px;
+          }
+          .bot-bubble {
+            background-color: rgba(30, 41, 59, 0.9);
+            color: #f8fafc;
+            float: left;
+            border-top-left-radius: 2px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+          }
+          .clear {
+            clear: both;
+          }
+        </style>
+        </head>
+        <body>
+        <div class="chat-container">
+        """
+        for msg in self.chat_history:
+            sender = msg["sender"]
+            text_val = msg["text"].replace("\n", "<br>")
+            if sender == "user":
+                html += f'<div class="msg-box"><div class="bubble user-bubble">{text_val}</div><div class="clear"></div></div>'
+            else:
+                html += f'<div class="msg-box"><div class="bubble bot-bubble">{text_val}</div><div class="clear"></div></div>'
+        html += """
+        </div>
+        </body>
+        </html>
+        """
+        self.response_area.setHtml(html)
+        # Scroll to bottom
+        scrollbar = self.response_area.verticalScrollBar()
+        if scrollbar:
+            scrollbar.setValue(scrollbar.maximum())
+
+    def eventFilter(self, obj, event):
+        if obj == self.card:
+            if event.type() == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self._drag_pos = event.globalPosition().toPoint()
+                    self._start_pos = event.globalPosition().toPoint()
+                    self._start_geometry = self.geometry()
+                    
+                    rect = self.rect()
+                    pos = self.mapFromGlobal(event.globalPosition().toPoint())
+                    margin = 15
+                    
+                    on_right = pos.x() >= rect.width() - margin
+                    on_bottom = pos.y() >= rect.height() - margin
+                    
+                    if on_right and on_bottom:
+                        self._resize_direction = "both"
+                    elif on_right:
+                        self._resize_direction = "right"
+                    elif on_bottom:
+                        self._resize_direction = "bottom"
+                    else:
+                        # Allow dragging to move only from the top header area
+                        if pos.y() <= 45:
+                            self._resize_direction = "move"
+                        else:
+                            self._resize_direction = None
+                            
+                    if self._resize_direction:
+                        return True
+            
+            elif event.type() == QEvent.Type.MouseMove:
+                pos = self.mapFromGlobal(event.globalPosition().toPoint())
+                rect = self.rect()
+                margin = 15
+                
+                if not (event.buttons() & Qt.MouseButton.LeftButton):
+                    on_right = pos.x() >= rect.width() - margin
+                    on_bottom = pos.y() >= rect.height() - margin
+                    if on_right and on_bottom:
+                        self.card.setCursor(Qt.CursorShape.SizeFDiagCursor)
+                    elif on_right:
+                        self.card.setCursor(Qt.CursorShape.SizeHorCursor)
+                    elif on_bottom:
+                        self.card.setCursor(Qt.CursorShape.SizeVerCursor)
+                    else:
+                        self.card.setCursor(Qt.CursorShape.ArrowCursor)
+                else:
+                    if hasattr(self, "_resize_direction") and self._resize_direction:
+                        global_pos = event.globalPosition().toPoint()
+                        if self._resize_direction == "move":
+                            delta = global_pos - self._drag_pos
+                            self.move(self.pos() + delta)
+                            self._drag_pos = global_pos
+                        else:
+                            delta = global_pos - self._start_pos
+                            new_w = self._start_geometry.width()
+                            new_h = self._start_geometry.height()
+                            if self._resize_direction in ("right", "both"):
+                                new_w = max(self.minimumWidth(), new_w + delta.x())
+                            if self._resize_direction in ("bottom", "both"):
+                                new_h = max(self.minimumHeight(), new_h + delta.y())
+                            self.setGeometry(self._start_geometry.x(), self._start_geometry.y(), new_w, new_h)
+                        return True
+        return super().eventFilter(obj, event)
 
 
 # ============================================================
@@ -790,9 +980,51 @@ class ReviewDialog(QDialog):
         title_label.setStyleSheet("font-size: 15px; font-weight: 700; color: #f59e0b;")
         layout.addWidget(title_label)
 
+        # Target Platform/Destination Indicator
+        target_platform = "Local System"
+        if self.action_type == "email":
+            target_platform = "Microsoft Outlook"
+            try:
+                from orchestra.tools.system_executor import check_app_installation_status
+                status = check_app_installation_status("outlook")
+                if not status.get("installed"):
+                    target_platform = "Default System Mail Client (mailto link)"
+            except Exception:
+                pass
+        elif self.action_type == "meeting_schedule":
+            target_platform = "Default Calendar App (.ics file)"
+            try:
+                from orchestra.tools.system_executor import check_app_installation_status
+                status = check_app_installation_status("outlook")
+                if status.get("installed"):
+                    target_platform = "Microsoft Outlook Calendar"
+            except Exception:
+                pass
+        elif self.action_type == "reminder_set":
+            target_platform = "Windows Task Scheduler (local popup alert)"
+            try:
+                from orchestra.tools.system_executor import check_app_installation_status
+                status = check_app_installation_status("outlook")
+                if status.get("installed"):
+                    target_platform = "Microsoft Outlook Tasks"
+            except Exception:
+                pass
+        elif self.action_type == "terminal":
+            target_platform = "Local System Command (CMD/PowerShell)"
+        elif self.action_type == "sandbox":
+            target_platform = "Python Code Sandbox"
+        elif self.action_type == "file_delete":
+            target_platform = "Local File System"
+
+        target_label = QLabel(f"Destination: {target_platform}")
+        target_label.setStyleSheet("font-size: 11px; font-weight: 600; color: #94a3b8; background: rgba(255, 255, 255, 0.05); padding: 4px 8px; border-radius: 4px;")
+        layout.addWidget(target_label)
+
         # Content area (editable so user can modify)
+        # Content area (starts as read-only, editable via Edit button)
         self.content_edit = QTextEdit()
         self.content_edit.setPlainText(content)
+        self.content_edit.setReadOnly(True)
         self.content_edit.setStyleSheet("""
             QTextEdit {
                 background: rgba(0, 0, 0, 0.3);
@@ -938,6 +1170,21 @@ class ReviewDialog(QDialog):
         """)
         approve_btn.clicked.connect(self._approve)
 
+        self.edit_btn = QPushButton("📝 Edit")
+        self.edit_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(59, 130, 246, 0.15);
+                border: 1px solid rgba(59, 130, 246, 0.3);
+                border-radius: 8px;
+                color: #3b82f6;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 8px 20px;
+            }
+            QPushButton:hover { background: rgba(59, 130, 246, 0.3); }
+        """)
+        self.edit_btn.clicked.connect(self._toggle_edit)
+
         reject_btn = QPushButton("✕ Reject")
         reject_btn.setStyleSheet("""
             QPushButton {
@@ -955,8 +1202,63 @@ class ReviewDialog(QDialog):
 
         btn_row.addStretch()
         btn_row.addWidget(reject_btn)
+        btn_row.addWidget(self.edit_btn)
         btn_row.addWidget(approve_btn)
         layout.addLayout(btn_row)
+
+    def _toggle_edit(self):
+        is_readonly = self.content_edit.isReadOnly()
+        self.content_edit.setReadOnly(not is_readonly)
+        if is_readonly:
+            # Now editable
+            self.content_edit.setStyleSheet("""
+                QTextEdit {
+                    background: rgba(59, 130, 246, 0.05);
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                    border-radius: 10px;
+                    color: #f8fafc;
+                    font-size: 12px;
+                    padding: 10px;
+                }
+            """)
+            self.edit_btn.setText("🔒 Save")
+            self.edit_btn.setStyleSheet("""
+                QPushButton {
+                    background: rgba(16, 185, 129, 0.15);
+                    border: 1px solid rgba(16, 185, 129, 0.3);
+                    border-radius: 8px;
+                    color: #10b981;
+                    font-size: 13px;
+                    font-weight: 600;
+                    padding: 8px 20px;
+                }
+                QPushButton:hover { background: rgba(16, 185, 129, 0.35); }
+            """)
+        else:
+            # Now locked/saved
+            self.content_edit.setStyleSheet("""
+                QTextEdit {
+                    background: rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 10px;
+                    color: #e2e8f0;
+                    font-size: 12px;
+                    padding: 10px;
+                }
+            """)
+            self.edit_btn.setText("📝 Edit")
+            self.edit_btn.setStyleSheet("""
+                QPushButton {
+                    background: rgba(59, 130, 246, 0.15);
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                    border-radius: 8px;
+                    color: #3b82f6;
+                    font-size: 13px;
+                    font-weight: 600;
+                    padding: 8px 20px;
+                }
+                QPushButton:hover { background: rgba(59, 130, 246, 0.3); }
+            """)
 
     def _approve(self):
         self._approved = True
@@ -1096,8 +1398,12 @@ class DarkiFloatingWidget(QWidget):
 
         # Check for pending actions that need review
         if content.startswith("PENDING_TERMINAL_COMMAND:"):
+            import base64
             parts = content.split(":", 2)
-            command = parts[1] if len(parts) > 1 else ""
+            try:
+                command = base64.b64decode(parts[1]).decode("utf-8") if len(parts) > 1 else ""
+            except Exception:
+                command = parts[1] if len(parts) > 1 else ""
             reasoning = parts[2] if len(parts) > 2 else ""
             self._show_review("Terminal Command", f"Command: {command}\n\nReasoning: {reasoning}", command, "terminal")
             self.robot.set_state("idle")
@@ -1274,7 +1580,7 @@ class DarkiFloatingWidget(QWidget):
                 resp = requests.post(
                     f"{API_BASE}/api/terminal/execute",
                     json={"command": orig_data.get("target", "")},
-                    timeout=30
+                    timeout=60
                 )
                 data = resp.json()
                 self.chat_popup.set_response(data.get("formatted_output", "Raw command execution done."))
@@ -1290,7 +1596,7 @@ class DarkiFloatingWidget(QWidget):
                 resp = requests.post(
                     f"{API_BASE}/api/terminal/execute",
                     json={"command": orig_data.get("target", "")},
-                    timeout=30
+                    timeout=60
                 )
                 data = resp.json()
                 self.chat_popup.set_response(data.get("formatted_output", "Launched application."))
@@ -1351,35 +1657,53 @@ class DarkiFloatingWidget(QWidget):
 
         if dialog.was_approved():
             try:
+                edited_content = dialog.get_edited_content().strip()
+                # Check if this is a natural language redirection/correction rather than field edits
+                is_correction = False
+                lines = [l.strip() for l in edited_content.split("\n") if l.strip()]
+                if len(lines) > 0:
+                    first_line = lines[0].lower()
+                    known_headers = ("command:", "code:", "message:", "subject:", "to:", "date:", "time:", "duration:")
+                    if not any(first_line.startswith(h) for h in known_headers):
+                        is_correction = True
+                
+                if is_correction:
+                    self.chat_popup.show()
+                    self._handle_chat(edited_content)
+                    return
+
                 if action_type == "terminal":
+                    edited_fields = parse_edited_fields(edited_content)
+                    final_command = edited_fields.get("command") or edited_fields.get("body") or command
                     resp = requests.post(
                         f"{API_BASE}/api/terminal/execute",
-                        json={"command": command},
-                        timeout=30,
+                        json={"command": final_command},
+                        timeout=60,
                     )
                     data = resp.json()
                     self.chat_popup.set_response(data.get("formatted_output", "Done."))
                 elif action_type == "sandbox":
+                    edited_fields = parse_edited_fields(edited_content)
+                    final_code = edited_fields.get("code") or edited_fields.get("body") or command
                     resp = requests.post(
                         f"{API_BASE}/api/sandbox/execute",
-                        json={"code": command},
-                        timeout=30,
+                        json={"code": final_code},
+                        timeout=60,
                     )
                     data = resp.json()
                     self.chat_popup.set_response(data.get("formatted_output", "Done."))
                 elif action_type == "email":
-                    import re
                     to_s, subj_s, body_s = command.split("|", 2)
-                    edited_body = dialog.get_edited_content()
-                    prefix_match = re.match(r"^To:\s*.*?\nSubject:\s*.*?\n\n", edited_body, re.IGNORECASE)
-                    if prefix_match:
-                        edited_body = edited_body[prefix_match.end():]
+                    edited_fields = parse_edited_fields(edited_content)
+                    to_s = edited_fields.get("to") or to_s
+                    subj_s = edited_fields.get("subject") or subj_s
+                    body_s = edited_fields.get("body") or body_s
 
                     smtp_details = dialog.get_smtp_details()
                     req_payload = {
                         "to": to_s,
                         "subject": subj_s,
-                        "body": edited_body
+                        "body": body_s
                     }
 
                     if smtp_details and smtp_details.get("smtp_password"):
@@ -1451,6 +1775,12 @@ class DarkiFloatingWidget(QWidget):
                     self.chat_popup.set_response(data.get("details", "Done."))
                 elif action_type == "meeting_schedule":
                     subject_s, date_s, time_s, duration_s, body_s = command.split("|", 4)
+                    edited_fields = parse_edited_fields(edited_content)
+                    subject_s = edited_fields.get("subject") or subject_s
+                    date_s = edited_fields.get("date") or date_s
+                    time_s = edited_fields.get("time") or time_s
+                    duration_s = str(edited_fields.get("duration") or duration_s)
+                    body_s = edited_fields.get("body") or body_s
                     resp = requests.post(
                         f"{API_BASE}/api/calendar/schedule",
                         json={
@@ -1466,6 +1796,10 @@ class DarkiFloatingWidget(QWidget):
                     self.chat_popup.set_response(data.get("details", "Done."))
                 elif action_type == "reminder_set":
                     message_s, date_s, time_s = command.split("|", 2)
+                    edited_fields = parse_edited_fields(edited_content)
+                    message_s = edited_fields.get("message") or message_s
+                    date_s = edited_fields.get("date") or date_s
+                    time_s = edited_fields.get("time") or time_s
                     resp = requests.post(
                         f"{API_BASE}/api/calendar/reminder",
                         json={
