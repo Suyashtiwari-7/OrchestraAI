@@ -215,8 +215,8 @@ ROUTING_TABLE: dict[TaskType, RouteConfig] = {
         description="General conversation and Q&A",
     ),
     TaskType.SYSTEM_COMMAND: RouteConfig(
-        primary="local-llama",
-        fallback="groq-llama",
+        primary="groq-llama",
+        fallback="gemini-2.0-flash",
         description="Launch local applications or open websites in specific browsers",
     ),
     TaskType.WEB_SEARCH: RouteConfig(
