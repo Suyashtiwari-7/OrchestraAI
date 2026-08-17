@@ -6,36 +6,21 @@ DARKI is a 100% local-first, privacy-preserving desktop AI companion running nat
 
 ---
 
-## ⚡ 1-Click Download & Run (No Python or Terminal Needed!)
+## ⚡ 1-Click Setup & Launch
 
-[![Download for Windows](https://img.shields.io/badge/Download_for_Windows-v1.0.0-238636?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Suyashtiwari-7/OrchestraAI/releases/latest)
-
-1. **[Download the latest Release ZIP](https://github.com/Suyashtiwari-7/OrchestraAI/releases/latest)** (`DARKI-Desktop-Windows.zip`).
-2. **Extract the ZIP file** to any folder on your PC.
-3. **Double-click `DARKI.exe`** — DARKI will launch immediately!
-
-> 💡 *Note: On first launch, open `.env` next to `DARKI.exe` in Notepad and paste your free API keys (NVIDIA NIM, Groq, Gemini).*
-
----
-
-## 🛠️ Run from Source (Developers & Contributors)
-
-### 1. Prerequisites
-1. **Python 3.10, 3.11, or 3.12** installed on Windows.  
-   *(⚠️ Important: During Python installation, check the box **"Add Python to PATH"**).*
-2. **Git** (optional, if cloning from GitHub).
-
-### 2. Automated Bootstrap Setup
-Simply double-click:
+### 1. Automated Setup
+Simply extract the repository folder and double-click:
 👉 **`setup_env.bat`**
 
-*What this script does automatically:*
+*What this does automatically:*
 - Creates the local virtual environment (`venv/`)
 - Installs all dependencies from `requirements.txt`
 - Sets up `.env` from `.env.example`
-- Generates a **`DARKI AI`** shortcut directly on your Windows Desktop
+- Creates a **`DARKI AI`** shortcut directly on your Windows Desktop
 
-### 3. Configure API Keys (`.env`)
+---
+
+### 2. Configure Your API Keys (`.env`)
 Open `.env` in Notepad and insert your free API keys:
 
 ```ini
@@ -58,9 +43,12 @@ GEMINI_API_KEY=your_gemini_key_here
 ## 🚀 How to Run DARKI
 
 You have 3 easy ways to launch:
-1. **Desktop Executable:** Double-click `dist/DARKI/DARKI.exe`.
-2. **Desktop Shortcut:** Double-click **`DARKI AI`** on your Windows Desktop.
-3. **Batch Script:** Double-click [`run_darki.bat`](file:///c:/Users/suyas/Documents/CODE/OrchestraAI-main/OrchestraAI-main/run_darki.bat).
+1. **Desktop Shortcut:** Double-click **`DARKI AI`** on your Windows Desktop.
+2. **Batch Script:** Double-click [`run_darki.bat`](file:///c:/Users/suyas/Documents/CODE/OrchestraAI-main/OrchestraAI-main/run_darki.bat).
+3. **Command Line:**
+   ```powershell
+   venv\Scripts\python.exe run_darki.py
+   ```
 
 ---
 
