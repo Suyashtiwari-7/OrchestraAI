@@ -1,6 +1,4 @@
 @echo off
-title DARKI Desktop AI
 cd /d "%~dp0"
-echo [*] Starting DARKI Desktop AI & Floating Mascot...
-venv\Scripts\python.exe run_darki.py
-pause
+start "" "%~dp0venv\Scripts\pythonw.exe" run_darki.py
+exit
