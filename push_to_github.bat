@@ -8,15 +8,15 @@ echo.
 set "GIT_EXE=%LOCALAPPDATA%\Programs\Git\cmd\git.exe"
 if not exist "%GIT_EXE%" set "GIT_EXE=git"
 
-echo [*] Staging and verifying commit...
+echo [*] Staging and committing clean files...
 "%GIT_EXE%" add .
 "%GIT_EXE%" commit -m "feat: add standalone desktop build, 1-click release workflow, and updated README" 2>nul
 "%GIT_EXE%" branch -M main
 
 echo.
-echo [*] Pushing to GitHub (A browser login window will open if not already signed in)...
+echo [*] Pushing latest changes to GitHub main branch...
 echo.
-"%GIT_EXE%" push -u origin main
+"%GIT_EXE%" push -f -u origin main
 
 if %errorlevel% equ 0 (
     echo.
@@ -25,7 +25,7 @@ if %errorlevel% equ 0 (
     echo ============================================================
 ) else (
     echo.
-    echo [!] Push failed or cancelled. Check the message above.
+    echo [!] Push failed. Check the message above.
 )
 echo.
 pause
