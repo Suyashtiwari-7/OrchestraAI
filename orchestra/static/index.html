@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DARKI 🤖 - Personal AI Assistant</title>
+    <!-- Outfit & JetBrains Mono Fonts from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Mobile Navigation Header -->
+        <header class="mobile-header">
+            <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle Sidebar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+            <div class="mobile-brand">
+                <span class="gold-logo-icon">🤖</span> DARKI
+            </div>
+            <button id="clear-chat-mobile" class="icon-btn" title="Clear Chat">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Left Sidebar / Navigation Panel -->
+        <aside id="app-sidebar" class="sidebar">
+            <!-- Sidebar Header Utilities -->
+            <div class="sidebar-header-row">
+                <button id="btn-new-chat" class="header-util-btn" title="New Chat">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+                <button id="btn-clear" class="header-util-btn" title="Clear Memory">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+                <button id="btn-close-sidebar" class="header-util-btn sidebar-close-only" title="Toggle Sidebar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="sidebar-search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="search-icon">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="history-search" placeholder="Search" autocomplete="off">
+            </div>
+
+            <!-- Collapsible System Panels -->
+            <div class="sidebar-collapsibles">
+                <details class="sidebar-accordion">
+                    <summary>🔑 API Key Status</summary>
+                    <div class="accordion-content">
+                        <div id="provider-status-list" class="provider-status-list">
+                            <div class="provider-loading">Checking system status...</div>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="sidebar-accordion">
+                    <summary>🌐 Model Routing Matrix</summary>
+                    <div class="accordion-content">
+                        <div class="routing-table-container">
+                            <table class="routing-table">
+                                <thead>
+                                    <tr>
+                                        <th>Task</th>
+                                        <th>Primary</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="routing-table-body">
+                                    <!-- Dynamic routing mapping -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="sidebar-accordion">
+                    <summary>⚙️ System Utilities</summary>
+                    <div class="accordion-content flex-col gap-8">
+                        <button id="btn-export" class="sidebar-btn-util">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Export History
+                        </button>
+                    </div>
+                </details>
+
+                <details class="sidebar-accordion" id="telemetry-accordion">
+                    <summary>📊 System Telemetry</summary>
+                    <div class="accordion-content">
+                        <div class="telemetry-dashboard" id="telemetry-dashboard">
+                            <div class="telemetry-metric">
+                                <span class="telemetry-label">CPU</span>
+                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill" id="tele-cpu-bar" style="width:0%"></div></div>
+                                <span class="telemetry-value" id="tele-cpu">--%</span>
+                            </div>
+                            <div class="telemetry-metric">
+                                <span class="telemetry-label">RAM</span>
+                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill" id="tele-ram-bar" style="width:0%"></div></div>
+                                <span class="telemetry-value" id="tele-ram">--%</span>
+                            </div>
+                            <div class="telemetry-metric">
+                                <span class="telemetry-label">Disk</span>
+                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill" id="tele-disk-bar" style="width:0%"></div></div>
+                                <span class="telemetry-value" id="tele-disk">--%</span>
+                            </div>
+                            <div class="telemetry-metric">
+                                <span class="telemetry-label">Battery</span>
+                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill telemetry-bar-battery" id="tele-bat-bar" style="width:0%"></div></div>
+                                <span class="telemetry-value" id="tele-bat">--%</span>
+                            </div>
+                            <div class="telemetry-active-window" id="tele-active-window">
+                                <span class="telemetry-label">🖥️ Active</span>
+                                <span class="telemetry-window-title" id="tele-window-title">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="sidebar-accordion" id="voice-accordion">
+                    <summary>🔊 Voice Settings</summary>
+                    <div class="accordion-content flex-col gap-8">
+                        <div class="voice-toggle-row">
+                            <span>Voice Feedback</span>
+                            <button id="btn-voice-toggle" class="voice-status-btn" title="Toggle voice feedback">
+                                <span id="voice-status-indicator">OFF</span>
+                            </button>
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <!-- Chat History Area -->
+            <div class="sidebar-history-container">
+                <div class="history-section" id="section-today">
+                    <div class="section-title">Today</div>
+                    <div class="history-list" id="history-list-today"></div>
+                </div>
+
+                <div class="history-section" id="section-before">
+                    <div class="section-title">Before</div>
+                    <div class="history-list" id="history-list-before"></div>
+                </div>
+            </div>
+
+            <!-- Premium Subscription Promo Card -->
+            <div class="purchase-promo-card">
+                <div class="promo-content">
+                    <div class="lock-circle">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </div>
+                    <div class="promo-text">
+                        <h4>Purchase</h4>
+                        <p>a subscription to unlock over 15 new features</p>
+                    </div>
+                </div>
+                <button class="promo-arrow-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-main">
+            <!-- Ambient Glow Effects -->
+            <div class="ambient-glow top-right"></div>
+            <div class="ambient-glow bottom-left"></div>
+
+            <!-- App Main Top Header -->
+            <header class="app-main-header">
+                <div class="header-brand">
+                    <button id="sidebar-toggle-desktop" class="sidebar-toggle-desktop" title="Toggle Sidebar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div class="gold-logo-icon-small">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="4" fill="var(--accent-gold)"></rect>
+                            <path d="M9 9h6v6H9z" fill="black"></path>
+                        </svg>
+                    </div>
+                    <span class="brand-name" style="color:var(--text-primary); font-weight:700;">DARKI</span>
+                </div>
+                <div class="header-right">
+                    <div class="user-avatar" id="user-avatar-btn">A</div>
+                </div>
+            </header>
+
+            <!-- Welcome screen when no history exists -->
+            <div id="welcome-screen" class="welcome-screen">
+                <!-- Glowing Gold Orb Visual -->
+                <div class="orb-container">
+                    <canvas id="orb-3d-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; outline: none; z-index: 2; pointer-events: auto;"></canvas>
+                    <div class="orb-fallback">
+                        <div class="orb-glow"></div>
+                        <div class="orb-fluid orb-fluid-1"></div>
+                        <div class="orb-fluid orb-fluid-2"></div>
+                        <div class="orb-fluid orb-fluid-3"></div>
+                        <div class="orb-glass-shine"></div>
+                    </div>
+                </div>
+
+                <h2 class="welcome-greeting">Welcome back <span id="user-greeting-name">Alex</span>!</h2>
+                <p class="welcome-subtitle">Which house drawing do you want to analyze today?</p>
+            </div>
+
+            <!-- Scrollable chat thread -->
+            <div id="chat-messages" class="chat-messages">
+                <!-- Chat bubbles populated dynamically -->
+            </div>
+
+            <!-- Loader template (animated) -->
+            <div id="chat-loading" class="chat-loading-wrapper hidden">
+                <div class="typing-bubble">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+                <div class="loading-status-text" id="loading-status">Classifying task routing...</div>
+            </div>
+
+            <!-- Footer Message Input Area -->
+            <footer class="chat-input-area">
+                <form id="chat-form" class="chat-form-pill">
+                    <!-- Attachment button -->
+                    <button type="button" id="attachment-btn" class="input-action-btn" title="Attach file">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Voice Wake Word Toggle Button -->
+                    <button type="button" id="voice-toggle-btn" class="input-action-btn voice-toggle-btn" title="Hey DARKI: OFF">
+                        🎙️
+                    </button>
+
+                    <!-- Input Box -->
+                    <input type="text" id="user-input" placeholder="Tell us about your capabilities..." autocomplete="off">
+                    
+                    <!-- Voice Dictation mic button -->
+                    <button type="button" id="mic-btn" class="input-action-btn mic-icon-btn" title="Voice Typing">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                    </button>
+
+                    <!-- Send button -->
+                    <button type="submit" class="send-circle-btn" aria-label="Send Prompt">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </form>
+
+                <!-- Mock action cards (under welcome screen or floating) -->
+                <div class="welcome-action-cards" id="welcome-action-cards">
+                    <div class="quick-prompt-card" data-prompt="Search for local suppliers and prices in my area">
+                        <div class="card-icon gold">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <h3>Search for suppliers</h3>
+                            <p>We will find suppliers with the best prices</p>
+                        </div>
+                    </div>
+
+                    <div class="quick-prompt-card" data-prompt="Select materials required for building a residential house drawing">
+                        <div class="card-icon gold">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                <polyline points="2 17 12 22 22 17"></polyline>
+                                <polyline points="2 12 12 17 22 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <h3>Select materials</h3>
+                            <p>According to drawings, select the best materials</p>
+                        </div>
+                    </div>
+
+                    <div class="quick-prompt-card" data-prompt="Calculate total cost of materials and labor for the drawing">
+                        <div class="card-icon gold">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <h3>Calculation of the cost</h3>
+                            <p>Our AI will quickly summarize estimated costs</p>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Floating Robot Mascot widget -->
+            <div class="leg right">
+                <div class="sneaker right"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mascot Quick Command Window -->
+    <div id="robot-mascot" class="robot-mascot" title="DARKI Mascot"></div>
+    <div id="mascot-command-window" class="mascot-command-window hidden">
+        <div class="mascot-header">
+            <h3>🤖 DARKI Command Overlay</h3>
+            <button id="mascot-close-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="mascot-body">
+            <p id="mascot-speech" class="mascot-speech">Hello! I am DARKI. Give me a local command or instruction to run!</p>
+            <div class="mascot-input-row">
+                <input type="text" id="mascot-input" placeholder="e.g. open notepad, run git status..." autocomplete="off">
+                <button type="button" id="mascot-mic-btn" class="mascot-mic-btn" title="Voice Command">🎙️</button>
+                <button id="mascot-submit-btn" class="submit-btn">Run</button>
+            </div>
+            <div id="mascot-status" class="mascot-status hidden"></div>
+        </div>
+    </div>
+
+    <!-- Script assets -->
+    <!-- Three.js Library CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Interactive 3D Orb controller -->
+    <script src="/orb3d.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

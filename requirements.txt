@@ -1,0 +1,62 @@
+# ============================================================
+# OrchestraAI / DARKI — Complete Project Dependencies
+# ============================================================
+# Install with: pip install -r requirements.txt
+# Tested on Python 3.10, 3.11, and 3.12 (Windows 10/11 x64)
+# ============================================================
+
+# --- Core LLM Provider SDKs ---
+openai>=1.40.0               # NVIDIA NIM & OpenAI-compatible LLM endpoints
+groq>=0.11.0                 # Groq ultra-fast inference (Llama 3.3, DeepSeek R1)
+google-genai>=1.0.0          # Google Gemini (Imagen 3 image generation)
+
+# --- Configuration & Environment ---
+python-dotenv>=1.0.0         # Load environment variables (.env)
+pydantic>=2.7.0              # Request/response validation and settings
+pydantic-settings>=2.2.0
+
+# --- Desktop GUI & Mascot System ---
+PyQt6>=6.6.0                 # High-performance desktop robot mascot & chat popup
+PyQt6-Qt6>=6.6.0
+PyQt6_sip>=13.6.0
+
+# --- Live Voice & Speech Pipeline ---
+faster-whisper>=1.0.0        # Local Faster-Whisper Speech-to-Text (CTranslate2)
+kokoro-onnx>=0.4.0           # Local Kokoro-82M human-grade TTS (ONNX)
+sounddevice>=0.4.6           # Low-latency audio stream playback
+edge-tts>=6.1.0              # Microsoft Neural TTS fallback
+numpy>=1.24.0                # Audio buffer processing
+scipy>=1.11.0                # Audio signal processing
+
+# --- Windows Automation, Hotkeys & Telemetry ---
+keyboard>=0.13.5             # Global keyboard shortcuts (Ctrl+0, Ctrl+Num0)
+pyautogui>=0.9.54           # Cross-app synthetic mouse & keyboard control
+pywin32>=306                 # Windows native APIs (UIA, DPAPI Vault, processes)
+pywinauto>=0.6.8             # Windows UI Automation (UIA) explorer
+psutil>=5.9.0                # System hardware & process telemetry
+pyperclip>=1.8.2             # System clipboard read/write
+screen_brightness_control>=0.23.0  # Native display brightness control
+pycaw>=20240210              # Windows Core Audio volume control
+comtypes>=1.2.0              # COM interface bindings for Windows audio
+
+# --- Web Server Backend & Networking ---
+fastapi>=0.110.0             # REST API server & WebSocket dispatcher
+uvicorn[standard]>=0.28.0    # ASGI server
+httpx>=0.27.0                # Async HTTP client
+requests>=2.31.0             # Sync HTTP client
+websockets>=12.0             # WebSocket communication
+
+# --- Web Scraping & Document Processing ---
+beautifulsoup4>=4.12.0       # HTML parsing & web scraping
+pypdf>=4.0.0                 # PDF reading & text extraction
+Pillow>=10.0.0               # Image processing & thumbnail generation
+opencv-python>=4.8.0         # Computer vision & screen analysis
+
+# --- Packaging & Standalone Compilation ---
+pyinstaller>=6.5.0           # Native Windows executable compiler
+pywebview>=5.0.0             # Desktop webview container
+
+# --- Unit & Integration Testing ---
+pytest>=8.0.0                # Test runner
+pytest-asyncio>=0.23.0       # Async test fixtures
+anyio>=4.3.0                 # Concurrency testing
