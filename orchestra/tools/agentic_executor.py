@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 
 from ..config import settings, TaskType
 from ..router import ModelRouter, ClassificationResult
@@ -63,12 +63,12 @@ DARKI Execution & Safety Guidelines:
 """
 
 class AgenticExecutor:
-    """Manages the step-by-step execution loop for agentic tasks."""
+    """Manages the step-by-step execution loop for dynamic multi-step agentic tasks (1 to 5 steps)."""
 
-    def __init__(self, router: ModelRouter, base_steps: int = 12, absolute_max_steps: int = 25):
+    def __init__(self, router: ModelRouter, base_steps: int = 5, absolute_max_steps: int = 5):
         self.router = router
-        self.max_steps = base_steps
-        self.absolute_max_steps = absolute_max_steps
+        self.max_steps = min(base_steps, 5)
+        self.absolute_max_steps = min(absolute_max_steps, 5)
         self._cancelled = False
 
     def cancel(self):
@@ -110,13 +110,16 @@ class AgenticExecutor:
         return None
 
     def execute_chain(self, user_goal: str, system_context: str = "") -> tuple[str, list]:
-        """Runs the agentic execution loop and returns the final response and options."""
-        self._cancelled = False
+        """Runs the agentic execution loop dynamically (1 to 5 steps) and returns the final response."""
+        if self._cancelled:
+            logger.info("AgenticExecutor: Execution halted by user kill-switch.")
+            return "🛑 **Task Cancelled**: Execution was stopped immediately per your request.", []
+
         steps_history: List[Dict[str, Any]] = []
         current_step = 1
         max_limit = self.max_steps
 
-        logger.info(f"AgenticExecutor: Starting loop for goal: '{user_goal}' (Initial budget: {max_limit} steps)")
+        logger.info(f"AgenticExecutor: Starting dynamic loop for goal: '{user_goal}' (Max ceiling: {max_limit} steps)")
 
         while current_step <= max_limit:
             # Check for user cancellation kill-switch
@@ -164,7 +167,7 @@ class AgenticExecutor:
 
             # Parse JSON action
             try:
-                from .utils.json_utils import extract_json
+                from ..utils.json_utils import extract_json
                 action_data = extract_json(result.content)
                 
                 # Enforce schema validation
@@ -197,6 +200,12 @@ class AgenticExecutor:
                 if not isinstance(opts, list):
                     opts = []
                 
+                # If executed across multiple dynamic steps, append an expandable execution summary
+                if steps_history:
+                    step_badges = "\n".join([f"- **Step {i+1} (`{s['action']}`)**: {s['thought']}" for i, s in enumerate(steps_history)])
+                    final_output = f"{target}\n\n<details><summary>⚡ <b>Completed in {len(steps_history) + 1} dynamic steps</b></summary>\n\n{step_badges}\n- **Step {len(steps_history) + 1} (`complete`)**: Finalized response & delivered result\n\n</details>"
+                    return final_output, opts
+
                 return target, opts
 
             # Anti-Stall Guard: Check if the last 3 steps repeated the exact same failing action
