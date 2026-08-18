@@ -333,10 +333,18 @@ class ChatBubblePopup(QWidget):
         card_layout.setContentsMargins(14, 14, 14, 14)
         card_layout.setSpacing(10)
 
-        # Header with branding and expand button
+        # Header with branding, expand, cancel, and switch off buttons
         header = QHBoxLayout()
-        title_icon = QLabel("🤖")
-        title_icon.setStyleSheet("font-size: 16px;")
+        header.setSpacing(6)
+        
+        title_icon = QLabel()
+        logo_path = Path(__file__).resolve().parent / "static" / "logo.png"
+        if logo_path.exists():
+            pix = QPixmap(str(logo_path)).scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            title_icon.setPixmap(pix)
+        else:
+            title_icon.setText("🤖")
+            title_icon.setStyleSheet("font-size: 16px;")
         header.addWidget(title_icon)
 
         title = QLabel("DARKI")
@@ -375,8 +383,9 @@ class ChatBubblePopup(QWidget):
         expand_btn.clicked.connect(self.open_full_chat.emit)
         header.addWidget(expand_btn)
 
-        # Close button
+        # Cancel / Hide popup button (✕)
         close_btn = QPushButton("✕")
+        close_btn.setToolTip("Hide popup (runs in background)")
         close_btn.setFixedSize(24, 24)
         close_btn.setStyleSheet("""
             QPushButton {
@@ -387,12 +396,33 @@ class ChatBubblePopup(QWidget):
                 border-radius: 4px;
             }
             QPushButton:hover {
-                background: rgba(239, 68, 68, 0.2);
-                color: #ef4444;
+                background: rgba(255, 255, 255, 0.1);
+                color: #f8fafc;
             }
         """)
         close_btn.clicked.connect(self.hide)
         header.addWidget(close_btn)
+
+        # Switch Off / Exit DARKI completely button (⏻)
+        power_btn = QPushButton("⏻")
+        power_btn.setToolTip("Switch Off / Exit DARKI completely")
+        power_btn.setFixedSize(24, 24)
+        power_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #ef4444;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background: rgba(239, 68, 68, 0.25);
+                color: #ff6b6b;
+            }
+        """)
+        power_btn.clicked.connect(self._on_power_off)
+        header.addWidget(power_btn)
 
         card_layout.addLayout(header)
 
@@ -520,6 +550,15 @@ class ChatBubblePopup(QWidget):
             self.chat_history.append({"sender": "user", "text": text})
             self._update_chat_display()
             self.send_message.emit(text)
+
+    def _on_power_off(self):
+        """Completely close and shut down DARKI application."""
+        import os
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            app.quit()
+        os._exit(0)
 
     def _on_cancel(self):
         """Send task cancellation kill-switch to server."""
