@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" width="120" height="120" alt="DARKI Logo" style="border-radius: 24px;" />
+</p>
+
 # DARKI / OrchestraAI 🤖🪄
 
 **Autonomous AI Desktop Companion, Executive Strategist & DevSecOps Guardian**
