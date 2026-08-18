@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from ..config import settings
+from .vector_engine import VectorMemoryEngine
 
 logger = logging.getLogger("orchestra.memory.database")
 
@@ -22,6 +23,7 @@ class MemoryDatabase:
 
     def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path or settings.project_root / "output" / "darki_memory.db"
+        self.vector_engine = VectorMemoryEngine(dimension=256)
         self._init_db()
 
     @contextlib.contextmanager
@@ -283,8 +285,31 @@ class MemoryDatabase:
 
     def get_relevant_insights(self, query_text: str) -> List[Dict[str, Any]]:
         """
-        Queries insights and connected graph using conceptual associative matching (Local RAG).
+        Queries insights and connected graph using Hybrid Semantic Vector + Graph + Keyword RAG.
         """
+        if not query_text or not query_text.strip():
+            return self.get_all_insights(limit=10)
+
+        all_insights = self.get_all_insights(limit=100)
+        seen_keys = set()
+        results: List[Dict[str, Any]] = []
+
+        # 1. Semantic Vector Search (computes dense embedding similarity)
+        if all_insights:
+            vector_matches = self.vector_engine.search(
+                query=query_text,
+                corpus=all_insights,
+                text_key="value",
+                top_k=10,
+                threshold=0.10
+            )
+            for vm in vector_matches:
+                ukey = (vm.get("category", ""), vm.get("key", ""), vm.get("value", ""))
+                if ukey not in seen_keys:
+                    seen_keys.add(ukey)
+                    results.append(vm)
+
+        # 2. Keyword & Synonyms Search
         words = re.findall(r'\b\w{3,20}\b', query_text.lower())
         stop_words = {
             "what", "where", "when", "which", "your", "that", "this", "there", 
@@ -293,7 +318,7 @@ class MemoryDatabase:
         }
         keywords = [w for w in words if w not in stop_words]
 
-        # Conceptual synonyms expansion (Smart Associative Memory)
+        # Conceptual synonyms expansion
         synonym_map = {
             "machine": ["laptop", "pc", "ideapad", "computer", "system"],
             "laptop": ["machine", "pc", "ideapad", "computer"],
@@ -305,53 +330,54 @@ class MemoryDatabase:
         for kw in keywords:
             if kw in synonym_map:
                 expanded_keywords.update(synonym_map[kw])
-        
-        if not expanded_keywords:
-            return self.get_all_insights(limit=10)
 
-        results = []
-        
-        # 1. Search Relational Insights
-        where_clauses = []
-        params = []
-        for kw in expanded_keywords:
-            where_clauses.append("value LIKE ? OR key LIKE ? OR category LIKE ?")
-            params.extend([f"%{kw}%", f"%{kw}%", f"%{kw}%"])
+        if expanded_keywords:
+            where_clauses = []
+            params = []
+            for kw in expanded_keywords:
+                where_clauses.append("value LIKE ? OR key LIKE ? OR category LIKE ?")
+                params.extend([f"%{kw}%", f"%{kw}%", f"%{kw}%"])
+                
+            query = f"""
+                SELECT category, key, value, importance 
+                FROM insights 
+                WHERE {" OR ".join(where_clauses)}
+                ORDER BY importance DESC
+                LIMIT 15
+            """
             
-        query = f"""
-            SELECT category, key, value, importance 
-            FROM insights 
-            WHERE {" OR ".join(where_clauses)}
-            ORDER BY importance DESC
-            LIMIT 15
-        """
-        
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
-                for r in rows:
-                    results.append({
-                        "category": r["category"],
-                        "key": r["key"],
-                        "value": r["value"],
-                        "importance": r["importance"]
-                    })
-            except Exception as e:
-                logger.error(f"[!] Error searching insights: {e}")
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(query, params)
+                    rows = cursor.fetchall()
+                    for r in rows:
+                        ukey = (r["category"], r["key"], r["value"])
+                        if ukey not in seen_keys:
+                            seen_keys.add(ukey)
+                            results.append({
+                                "category": r["category"],
+                                "key": r["key"],
+                                "value": r["value"],
+                                "importance": r["importance"]
+                            })
+                except Exception as e:
+                    logger.error(f"[!] Error searching insights: {e}")
 
-        # 2. Search Connected Graph for Multi-Hop Associations
+        # 3. Search Connected Graph for Multi-Hop Associations
         for kw in keywords:
             graph_facts = self.query_connected_graph(kw, depth=2)
             for gf in graph_facts:
                 fact_str = f"({gf['source'].title()}) is {gf['relation']} ({gf['target'].title()}) {gf['details']}".strip()
-                results.append({
-                    "category": "CONNECTED_GRAPH",
-                    "key": f"{gf['source']}_{gf['relation']}",
-                    "value": fact_str,
-                    "importance": 8
-                })
+                ukey = ("CONNECTED_GRAPH", f"{gf['source']}_{gf['relation']}", fact_str)
+                if ukey not in seen_keys:
+                    seen_keys.add(ukey)
+                    results.append({
+                        "category": "CONNECTED_GRAPH",
+                        "key": f"{gf['source']}_{gf['relation']}",
+                        "value": fact_str,
+                        "importance": 8
+                    })
 
         if not results:
             return self.get_all_insights(limit=10)

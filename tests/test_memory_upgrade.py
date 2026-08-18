@@ -1,13 +1,14 @@
 """
 OrchestraAI — Smart Memory, Connected Graph & Digital Safe Tests
 ================================================================
-Tests for MemoryVault (DPAPI Encryption), Connected Graph Memory, and Conceptual Local RAG.
+Tests for MemoryVault (DPAPI Encryption), Connected Graph Memory, Vector Memory Engine, and Hybrid Local RAG.
 """
 
 import pytest
 from pathlib import Path
 from orchestra.memory.database import MemoryDatabase
 from orchestra.memory.vault import MemoryVault
+from orchestra.memory.vector_engine import VectorMemoryEngine
 
 
 class TestMemoryVault:
@@ -28,6 +29,37 @@ class TestMemoryVault:
         """Test encryption of empty string."""
         assert MemoryVault.encrypt("") == ""
         assert MemoryVault.decrypt("") == ""
+
+
+class TestVectorMemoryEngine:
+    """Test standalone semantic vector encoder and cosine similarity."""
+
+    def test_vector_encoding_and_similarity(self):
+        """Test dense vector normalization and semantic similarity matching."""
+        engine = VectorMemoryEngine(dimension=256)
+        vec1 = engine.encode("Artificial intelligence and machine learning algorithms")
+        vec2 = engine.encode("AI and machine learning neural networks")
+        vec3 = engine.encode("Baking a chocolate strawberry cake recipe")
+
+        sim_related = engine.cosine_similarity(vec1, vec2)
+        sim_unrelated = engine.cosine_similarity(vec1, vec3)
+
+        assert sim_related > sim_unrelated
+        assert sim_related > 0.3
+
+    def test_vector_search(self):
+        """Test vector search retrieval over a document corpus."""
+        engine = VectorMemoryEngine(dimension=256)
+        corpus = [
+            {"id": 1, "text": "Dark mode theme configuration and neon purple styles"},
+            {"id": 2, "text": "Python FastAPI backend endpoints and SQLite memory database"},
+            {"id": 3, "text": "Weekly grocery list: apples, milk, bread, and eggs"},
+        ]
+
+        results = engine.search("How to setup FastAPI backend API routes", corpus, text_key="text", top_k=1)
+        assert len(results) == 1
+        assert results[0]["id"] == 2
+        assert results[0]["similarity_score"] > 0.2
 
 
 class TestConnectedMemoryGraph:
@@ -74,3 +106,24 @@ class TestConnectedMemoryGraph:
         results = self.db.get_relevant_insights("Tell me about my gaming machine")
         assert len(results) >= 1
         assert "Lenovo IdeaPad" in results[0]["value"]
+
+    def test_hybrid_semantic_vector_recall(self):
+        """Test semantic vector recall when keywords are completely distinct."""
+        self.db.save_insights_batch([
+            {
+                "category": "PREFERENCE",
+                "key": "favorite_editor",
+                "value": "I prefer using Antigravity IDE and Visual Studio Code for Python development",
+                "importance": 8,
+            },
+            {
+                "category": "FOOD",
+                "key": "dinner_choice",
+                "value": "Spicy paneer butter masala with garlic naan",
+                "importance": 5,
+            }
+        ])
+
+        results = self.db.get_relevant_insights("coding environment preferences and software development tools")
+        assert len(results) >= 1
+        assert any("Antigravity IDE" in r.get("value", "") for r in results)
