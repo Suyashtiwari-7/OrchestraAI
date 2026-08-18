@@ -37,6 +37,8 @@ from .config import (
     ROUTING_TABLE,
     api_keys,
     settings,
+    PROJECT_ROOT,
+    ENV_PATH,
 )
 from .classifier import TaskClassifier, ClassificationResult
 from .router import ModelRouter, RoutingDecision
@@ -319,7 +321,97 @@ class ChatResponse(BaseModel):
     saved_files: List[str] = []
     options: Optional[List[Dict[str, str]]] = []
 
+class SaveKeysRequest(BaseModel):
+    nvidia_nim_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+
 # --- API Endpoints ---
+
+@app.get("/api/keys")
+def get_api_keys():
+    """Retrieve masked API key statuses for UI configuration."""
+    def mask_key(k: Optional[str]) -> str:
+        if not k or len(k) < 8:
+            return ""
+        return k[:4] + "•" * 12 + k[-4:]
+
+    return {
+        "nvidia_nim_configured": bool(api_keys.nvidia_nim_api_key),
+        "groq_configured": bool(api_keys.groq_api_key),
+        "gemini_configured": bool(api_keys.gemini_api_key),
+        "nvidia_nim_masked": mask_key(api_keys.nvidia_nim_api_key),
+        "groq_masked": mask_key(api_keys.groq_api_key),
+        "gemini_masked": mask_key(api_keys.gemini_api_key),
+    }
+
+@app.post("/api/keys")
+def save_api_keys(req: SaveKeysRequest):
+    """Save provided API keys to .env file and active runtime config."""
+    import os
+    env_file = ENV_PATH if ENV_PATH.exists() else (PROJECT_ROOT / ".env")
+    
+    # Read existing .env lines
+    existing_lines = []
+    if env_file.exists():
+        existing_lines = env_file.read_text(encoding="utf-8").splitlines()
+        
+    key_dict = {}
+    for line in existing_lines:
+        line_clean = line.strip()
+        if line_clean and not line_clean.startswith("#") and "=" in line_clean:
+            k, v = line_clean.split("=", 1)
+            key_dict[k.strip()] = v.strip()
+            
+    updated = []
+    if req.nvidia_nim_api_key is not None and req.nvidia_nim_api_key.strip():
+        val = req.nvidia_nim_api_key.strip()
+        api_keys.nvidia_nim_api_key = val
+        key_dict["NVIDIA_NIM_API_KEY"] = val
+        os.environ["NVIDIA_NIM_API_KEY"] = val
+        updated.append("NVIDIA NIM")
+        
+    if req.groq_api_key is not None and req.groq_api_key.strip():
+        val = req.groq_api_key.strip()
+        api_keys.groq_api_key = val
+        key_dict["GROQ_API_KEY"] = val
+        os.environ["GROQ_API_KEY"] = val
+        updated.append("Groq")
+        
+    if req.gemini_api_key is not None and req.gemini_api_key.strip():
+        val = req.gemini_api_key.strip()
+        api_keys.gemini_api_key = val
+        key_dict["GEMINI_API_KEY"] = val
+        os.environ["GEMINI_API_KEY"] = val
+        updated.append("Gemini")
+
+    # Reconstruct .env content
+    out_lines = [
+        "# ============================================",
+        "# OrchestraAI / DARKI — Environment Config",
+        "# ============================================",
+        "",
+    ]
+    for k, v in key_dict.items():
+        out_lines.append(f"{k}={v}")
+        
+    env_file.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    
+    # Re-initialize router provider states
+    try:
+        router.reinitialize_providers()
+    except Exception:
+        pass
+        
+    return {
+        "status": "success",
+        "message": f"Successfully updated {', '.join(updated) if updated else 'keys'} in .env!",
+        "configured": {
+            "nvidia_nim": bool(api_keys.nvidia_nim_api_key),
+            "groq": bool(api_keys.groq_api_key),
+            "gemini": bool(api_keys.gemini_api_key),
+        }
+    }
 
 @app.get("/api/status")
 def get_status():

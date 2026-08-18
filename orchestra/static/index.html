@@ -69,84 +69,44 @@
 
             <!-- Collapsible System Panels -->
             <div class="sidebar-collapsibles">
-                <details class="sidebar-accordion">
-                    <summary>🔑 API Key Status</summary>
+                <details class="sidebar-accordion" open>
+                    <summary>🔑 API Key Configuration</summary>
                     <div class="accordion-content">
-                        <div id="provider-status-list" class="provider-status-list">
-                            <div class="provider-loading">Checking system status...</div>
-                        </div>
-                    </div>
-                </details>
+                        <div class="api-keys-manager">
+                            <div class="api-key-slot">
+                                <label for="input-nvidia-key" class="api-key-label">
+                                    <span>⚡ NVIDIA NIM (Llama 3.3 / DeepSeek R1)</span>
+                                </label>
+                                <div class="api-key-input-wrapper">
+                                    <input type="password" id="input-nvidia-key" class="api-key-field" placeholder="nvapi-..." autocomplete="off">
+                                    <button type="button" class="btn-toggle-key" data-target="input-nvidia-key" title="Show/Hide Key">👁️</button>
+                                </div>
+                            </div>
 
-                <details class="sidebar-accordion">
-                    <summary>🌐 Model Routing Matrix</summary>
-                    <div class="accordion-content">
-                        <div class="routing-table-container">
-                            <table class="routing-table">
-                                <thead>
-                                    <tr>
-                                        <th>Task</th>
-                                        <th>Primary</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="routing-table-body">
-                                    <!-- Dynamic routing mapping -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </details>
+                            <div class="api-key-slot">
+                                <label for="input-groq-key" class="api-key-label">
+                                    <span>⚡ Groq (Fast Inference & Utility)</span>
+                                </label>
+                                <div class="api-key-input-wrapper">
+                                    <input type="password" id="input-groq-key" class="api-key-field" placeholder="gsk_..." autocomplete="off">
+                                    <button type="button" class="btn-toggle-key" data-target="input-groq-key" title="Show/Hide Key">👁️</button>
+                                </div>
+                            </div>
 
-                <details class="sidebar-accordion">
-                    <summary>⚙️ System Utilities</summary>
-                    <div class="accordion-content flex-col gap-8">
-                        <button id="btn-export" class="sidebar-btn-util">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Export History
-                        </button>
-                    </div>
-                </details>
+                            <div class="api-key-slot">
+                                <label for="input-gemini-key" class="api-key-label">
+                                    <span>🎨 Google Gemini (Imagen 3)</span>
+                                </label>
+                                <div class="api-key-input-wrapper">
+                                    <input type="password" id="input-gemini-key" class="api-key-field" placeholder="AIzaSy..." autocomplete="off">
+                                    <button type="button" class="btn-toggle-key" data-target="input-gemini-key" title="Show/Hide Key">👁️</button>
+                                </div>
+                            </div>
 
-                <details class="sidebar-accordion" id="telemetry-accordion">
-                    <summary>📊 System Telemetry</summary>
-                    <div class="accordion-content">
-                        <div class="telemetry-dashboard" id="telemetry-dashboard">
-                            <div class="telemetry-metric">
-                                <span class="telemetry-label">CPU</span>
-                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill" id="tele-cpu-bar" style="width:0%"></div></div>
-                                <span class="telemetry-value" id="tele-cpu">--%</span>
-                            </div>
-                            <div class="telemetry-metric">
-                                <span class="telemetry-label">RAM</span>
-                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill" id="tele-ram-bar" style="width:0%"></div></div>
-                                <span class="telemetry-value" id="tele-ram">--%</span>
-                            </div>
-                            <div class="telemetry-metric">
-                                <span class="telemetry-label">Disk</span>
-                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill" id="tele-disk-bar" style="width:0%"></div></div>
-                                <span class="telemetry-value" id="tele-disk">--%</span>
-                            </div>
-                            <div class="telemetry-metric">
-                                <span class="telemetry-label">Battery</span>
-                                <div class="telemetry-bar-track"><div class="telemetry-bar-fill telemetry-bar-battery" id="tele-bat-bar" style="width:0%"></div></div>
-                                <span class="telemetry-value" id="tele-bat">--%</span>
-                            </div>
-                            <div class="telemetry-active-window" id="tele-active-window">
-                                <span class="telemetry-label">🖥️ Active</span>
-                                <span class="telemetry-window-title" id="tele-window-title">--</span>
-                            </div>
-                        </div>
-                    </div>
-                </details>
-
-                <details class="sidebar-accordion" id="voice-accordion">
-                    <summary>🔊 Voice Settings</summary>
-                    <div class="accordion-content flex-col gap-8">
-                        <div class="voice-toggle-row">
-                            <span>Voice Feedback</span>
-                            <button id="btn-voice-toggle" class="voice-status-btn" title="Toggle voice feedback">
-                                <span id="voice-status-indicator">OFF</span>
+                            <button id="btn-save-api-keys" class="btn-save-keys">
+                                💾 Save API Keys
                             </button>
+                            <div id="api-keys-feedback" class="api-keys-feedback hidden"></div>
                         </div>
                     </div>
                 </details>
@@ -163,28 +123,6 @@
                     <div class="section-title">Before</div>
                     <div class="history-list" id="history-list-before"></div>
                 </div>
-            </div>
-
-            <!-- Premium Subscription Promo Card -->
-            <div class="purchase-promo-card">
-                <div class="promo-content">
-                    <div class="lock-circle">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                        </svg>
-                    </div>
-                    <div class="promo-text">
-                        <h4>Purchase</h4>
-                        <p>a subscription to unlock over 15 new features</p>
-                    </div>
-                </div>
-                <button class="promo-arrow-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                        <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
-                </button>
             </div>
         </aside>
 
@@ -330,36 +268,7 @@
         </main>
     </div>
 
-    <!-- Floating Robot Mascot widget -->
-            <div class="leg right">
-                <div class="sneaker right"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Mascot Quick Command Window -->
-    <div id="robot-mascot" class="robot-mascot" title="DARKI Mascot"></div>
-    <div id="mascot-command-window" class="mascot-command-window hidden">
-        <div class="mascot-header">
-            <h3>🤖 DARKI Command Overlay</h3>
-            <button id="mascot-close-btn" class="close-btn">&times;</button>
-        </div>
-        <div class="mascot-body">
-            <p id="mascot-speech" class="mascot-speech">Hello! I am DARKI. Give me a local command or instruction to run!</p>
-            <div class="mascot-input-row">
-                <input type="text" id="mascot-input" placeholder="e.g. open notepad, run git status..." autocomplete="off">
-                <button type="button" id="mascot-mic-btn" class="mascot-mic-btn" title="Voice Command">🎙️</button>
-                <button id="mascot-submit-btn" class="submit-btn">Run</button>
-            </div>
-            <div id="mascot-status" class="mascot-status hidden"></div>
-        </div>
-    </div>
-
     <!-- Script assets -->
-    <!-- Three.js Library CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Interactive 3D Orb controller -->
-    <script src="/orb3d.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

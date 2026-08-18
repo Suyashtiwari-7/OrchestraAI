@@ -66,6 +66,10 @@ class ModelRouter:
         self._providers: dict[ProviderName, Optional[BaseProvider]] = {}
         self._init_providers()
 
+    def reinitialize_providers(self):
+        """Re-initializes all providers with fresh API keys from config."""
+        self._init_providers()
+
     def _init_providers(self):
         """
         Create provider instances for all configured API keys.

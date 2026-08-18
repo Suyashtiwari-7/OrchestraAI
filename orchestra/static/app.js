@@ -28,54 +28,163 @@ document.addEventListener("DOMContentLoaded", () => {
     const sidebarToggleDesktop = document.getElementById("sidebar-toggle-desktop");
     const appContainer = document.querySelector(".app-container");
 
+    // API Key Elements
+    const inputNvidiaKey = document.getElementById("input-nvidia-key");
+    const inputGroqKey = document.getElementById("input-groq-key");
+    const inputGeminiKey = document.getElementById("input-gemini-key");
+    const btnSaveApiKeys = document.getElementById("btn-save-api-keys");
+    const apiKeysFeedback = document.getElementById("api-keys-feedback");
+    const toggleKeyBtns = document.querySelectorAll(".btn-toggle-key");
+
     // Local State
     let activeOverrideProvider = ""; // "gemini", "groq", "cerebras", or ""
     let chatHistory = [];
 
     // Initialize Page
+    loadApiKeys();
     fetchSystemStatus();
     fetchRoutingTable();
     fetchUserProfile();
     loadChatHistory();
 
-    // Do not hide the mascot overlay on desktop view so that the customized mascot is visible in the chat UI
+    // --- Sidebar Toggle Logic (Works on both Desktop & Mobile) ---
+    function toggleSidebar(e) {
+        if (e) e.stopPropagation();
+        if (window.innerWidth <= 768) {
+            if (sidebar) sidebar.classList.toggle("active");
+        } else {
+            if (appContainer) appContainer.classList.toggle("sidebar-collapsed");
+        }
+    }
 
-    // --- Event Listeners ---
-
-    // Toggle Sidebar (Mobile view)
-    sidebarToggle.addEventListener("click", (e) => {
-        e.stopPropagation();
-        sidebar.classList.toggle("active");
-    });
-
+    if (sidebarToggleDesktop) {
+        sidebarToggleDesktop.addEventListener("click", toggleSidebar);
+    }
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener("click", toggleSidebar);
+    }
     if (btnCloseSidebar) {
-        btnCloseSidebar.addEventListener("click", () => {
-            sidebar.classList.remove("active");
-        });
+        btnCloseSidebar.addEventListener("click", toggleSidebar);
     }
 
     // Close Sidebar clicking outside on mobile
     document.addEventListener("click", (e) => {
-        if (window.innerWidth <= 768 && sidebar.classList.contains("active")) {
+        if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains("active")) {
             if (!sidebar.contains(e.target) && e.target !== sidebarToggle && e.target !== btnCloseSidebar) {
                 sidebar.classList.remove("active");
             }
         }
     });
 
-    // Toggle Sidebar (Desktop view)
-    if (sidebarToggleDesktop) {
-        sidebarToggleDesktop.addEventListener("click", (e) => {
-            e.stopPropagation();
-            if (appContainer) appContainer.classList.toggle("sidebar-collapsed");
+    // --- API Key Slots & Management ---
+    toggleKeyBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const targetId = btn.getAttribute("data-target");
+            const targetInput = document.getElementById(targetId);
+            if (targetInput) {
+                if (targetInput.type === "password") {
+                    targetInput.type = "text";
+                    btn.textContent = "🔒";
+                } else {
+                    targetInput.type = "password";
+                    btn.textContent = "👁️";
+                }
+            }
         });
-    }    // Compose / New Chat button handler
+    });
+
+    async function loadApiKeys() {
+        try {
+            const res = await fetch("/api/keys");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.nvidia_nim_configured && inputNvidiaKey && !inputNvidiaKey.value) {
+                    inputNvidiaKey.placeholder = data.nvidia_nim_masked || "Configured (nvapi-...)";
+                }
+                if (data.groq_configured && inputGroqKey && !inputGroqKey.value) {
+                    inputGroqKey.placeholder = data.groq_masked || "Configured (gsk_...)";
+                }
+                if (data.gemini_configured && inputGeminiKey && !inputGeminiKey.value) {
+                    inputGeminiKey.placeholder = data.gemini_masked || "Configured (AIzaSy...)";
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load API keys:", err);
+        }
+    }
+
+    if (btnSaveApiKeys) {
+        btnSaveApiKeys.addEventListener("click", async () => {
+            const nvidia = inputNvidiaKey ? inputNvidiaKey.value.trim() : "";
+            const groq = inputGroqKey ? inputGroqKey.value.trim() : "";
+            const gemini = inputGeminiKey ? inputGeminiKey.value.trim() : "";
+
+            if (!nvidia && !groq && !gemini) {
+                showApiKeyFeedback("Please enter at least one API key to save.", "error");
+                return;
+            }
+
+            btnSaveApiKeys.disabled = true;
+            btnSaveApiKeys.textContent = "⏳ Saving...";
+
+            try {
+                const res = await fetch("/api/keys", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        nvidia_nim_api_key: nvidia || undefined,
+                        groq_api_key: groq || undefined,
+                        gemini_api_key: gemini || undefined,
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    showApiKeyFeedback("✅ Keys saved and active in .env!", "success");
+                    if (inputNvidiaKey && nvidia) {
+                        inputNvidiaKey.value = "";
+                        inputNvidiaKey.placeholder = nvidia.slice(0, 4) + "••••••••••••" + nvidia.slice(-4);
+                    }
+                    if (inputGroqKey && groq) {
+                        inputGroqKey.value = "";
+                        inputGroqKey.placeholder = groq.slice(0, 4) + "••••••••••••" + groq.slice(-4);
+                    }
+                    if (inputGeminiKey && gemini) {
+                        inputGeminiKey.value = "";
+                        inputGeminiKey.placeholder = gemini.slice(0, 4) + "••••••••••••" + gemini.slice(-4);
+                    }
+                    fetchSystemStatus();
+                } else {
+                    showApiKeyFeedback("❌ " + (data.detail || "Failed to save keys."), "error");
+                }
+            } catch (err) {
+                showApiKeyFeedback("❌ Network error saving keys.", "error");
+            } finally {
+                btnSaveApiKeys.disabled = false;
+                btnSaveApiKeys.textContent = "💾 Save API Keys";
+            }
+        });
+    }
+
+    function showApiKeyFeedback(msg, type) {
+        if (!apiKeysFeedback) return;
+        apiKeysFeedback.textContent = msg;
+        apiKeysFeedback.className = `api-keys-feedback ${type}`;
+        apiKeysFeedback.classList.remove("hidden");
+        setTimeout(() => {
+            apiKeysFeedback.classList.add("hidden");
+        }, 5000);
+    }
+
+    // Compose / New Chat button handler
     if (btnNewChat) {
         btnNewChat.addEventListener("click", () => {
-            userInput.value = "";
-            userInput.focus();
-            chatMessages.innerHTML = "";
-            welcomeScreen.classList.remove("hidden");
+            if (userInput) {
+                userInput.value = "";
+                userInput.focus();
+            }
+            if (chatMessages) chatMessages.innerHTML = "";
+            if (welcomeScreen) welcomeScreen.classList.remove("hidden");
         });
     }
 
@@ -83,8 +192,10 @@ document.addEventListener("DOMContentLoaded", () => {
     quickPromptCards.forEach(card => {
         card.addEventListener("click", () => {
             const prompt = card.getAttribute("data-prompt");
-            userInput.value = prompt;
-            userInput.focus();
+            if (userInput) {
+                userInput.value = prompt;
+                userInput.focus();
+            }
         });
     });
 
@@ -166,28 +277,31 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
     };
-    btnClear.addEventListener("click", clearMemoryAction);
-    btnClearMobile.addEventListener("click", clearMemoryAction);
+    if (btnClear) btnClear.addEventListener("click", clearMemoryAction);
+    if (btnClearMobile) btnClearMobile.addEventListener("click", clearMemoryAction);
 
     // Export Chat History handler
-    btnExport.addEventListener("click", () => {
-        if (chatHistory.length === 0) {
-            alert("No conversation history to export.");
-            return;
-        }
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chatHistory, null, 2));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `orchestra_chat_${new Date().toISOString().slice(0,10)}.json`);
-        document.body.appendChild(downloadAnchor);
-        downloadAnchor.click();
-        downloadAnchor.remove();
-    });
+    if (btnExport) {
+        btnExport.addEventListener("click", () => {
+            if (chatHistory.length === 0) {
+                alert("No conversation history to export.");
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chatHistory, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `orchestra_chat_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        });
+    }
 
     // --- API Functions ---
 
     // Fetch API status & configurations
     async function fetchSystemStatus() {
+        if (!providerStatusList) return;
         try {
             const response = await fetch("/api/status");
             if (!response.ok) throw new Error();
@@ -212,12 +326,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 providerStatusList.appendChild(row);
             });
         } catch (error) {
-            providerStatusList.innerHTML = `<div class="provider-loading" style="color:red">Failed to reach API server</div>`;
+            if (providerStatusList) {
+                providerStatusList.innerHTML = `<div class="provider-loading" style="color:red">Failed to reach API server</div>`;
+            }
         }
     }
 
     // Fetch routing matrix for sidebar display
     async function fetchRoutingTable() {
+        if (!routingTableBody) return;
         try {
             const response = await fetch("/api/models");
             if (!response.ok) throw new Error();
@@ -830,7 +947,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return html;
     }
 
-    // --- Robot Mascot Interaction ---
+    // --- Robot Mascot Interaction (Optional Window Widget) ---
     const robotMascot = document.getElementById("robot-mascot");
     const mascotCommandWindow = document.getElementById("mascot-command-window");
     const mascotCloseBtn = document.getElementById("mascot-close-btn");
@@ -838,33 +955,38 @@ document.addEventListener("DOMContentLoaded", () => {
     const mascotInput = document.getElementById("mascot-input");
 
     // Toggle mascot quick command window
-    robotMascot.addEventListener("click", () => {
-        mascotCommandWindow.classList.toggle("hidden");
-        if (!mascotCommandWindow.classList.contains("hidden")) {
-            mascotInput.focus();
-        }
-    });
+    if (robotMascot && mascotCommandWindow) {
+        robotMascot.addEventListener("click", () => {
+            mascotCommandWindow.classList.toggle("hidden");
+            if (!mascotCommandWindow.classList.contains("hidden") && mascotInput) {
+                mascotInput.focus();
+            }
+        });
+    }
 
     // Close mascot window
-    mascotCloseBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        mascotCommandWindow.classList.add("hidden");
-    });
+    if (mascotCloseBtn && mascotCommandWindow) {
+        mascotCloseBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            mascotCommandWindow.classList.add("hidden");
+        });
+    }
 
     // Submit quick command from mascot
     const submitMascotCommand = async () => {
+        if (!mascotInput) return;
         const text = mascotInput.value.trim();
         if (!text) return;
 
         mascotInput.value = "";
-        mascotCommandWindow.classList.add("hidden");
+        if (mascotCommandWindow) mascotCommandWindow.classList.add("hidden");
 
         // Display user bubble in chat
         appendMessageBubble("user", text);
-        welcomeScreen.classList.add("hidden");
+        if (welcomeScreen) welcomeScreen.classList.add("hidden");
 
         // Animate bot to listening state
-        robotMascot.className = "robot-mascot listening";
+        if (robotMascot) robotMascot.className = "robot-mascot listening";
         showLoader("DARKI parsing command...");
 
         try {
@@ -889,29 +1011,35 @@ document.addEventListener("DOMContentLoaded", () => {
             appendMessageBubble("assistant", data.content, data);
 
             // Animate bot to success state
-            robotMascot.className = "robot-mascot success";
-            setTimeout(() => {
-                robotMascot.className = "robot-mascot";
-            }, 2500);
+            if (robotMascot) {
+                robotMascot.className = "robot-mascot success";
+                setTimeout(() => {
+                    if (robotMascot) robotMascot.className = "robot-mascot";
+                }, 2500);
+            }
 
         } catch (error) {
             hideLoader();
             appendMessageBubble("assistant", `❌ **Error:** ${error.message}. Please verify your API keys are configured and try again.`);
             
             // Animate bot to error state
-            robotMascot.className = "robot-mascot error";
-            setTimeout(() => {
-                robotMascot.className = "robot-mascot";
-            }, 2500);
+            if (robotMascot) {
+                robotMascot.className = "robot-mascot error";
+                setTimeout(() => {
+                    if (robotMascot) robotMascot.className = "robot-mascot";
+                }, 2500);
+            }
         }
     };
 
-    mascotSubmitBtn.addEventListener("click", submitMascotCommand);
-    mascotInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            submitMascotCommand();
-        }
-    });
+    if (mascotSubmitBtn) mascotSubmitBtn.addEventListener("click", submitMascotCommand);
+    if (mascotInput) {
+        mascotInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                submitMascotCommand();
+            }
+        });
+    }
 
     // --- Global Window Helpers (TTS & Terminal execution) ---
     
@@ -963,9 +1091,9 @@ document.addEventListener("DOMContentLoaded", () => {
         button.innerText = "Running...";
         button.nextElementSibling.disabled = true;
         
-        // Animate mascot to listening state
+        // Animate mascot to listening state if present
         const mascot = document.getElementById("robot-mascot");
-        mascot.className = "robot-mascot listening";
+        if (mascot) mascot.className = "robot-mascot listening";
         
         try {
             const response = await fetch("/api/terminal/execute", {
@@ -980,12 +1108,16 @@ document.addEventListener("DOMContentLoaded", () => {
             const actionsDiv = button.parentNode;
             if (data.success) {
                 actionsDiv.innerHTML = `<span style="color:var(--accent-green)">✓ Executed successfully</span>`;
-                mascot.className = "robot-mascot success";
-                setTimeout(() => mascot.className = "robot-mascot", 2000);
+                if (mascot) {
+                    mascot.className = "robot-mascot success";
+                    setTimeout(() => { if (mascot) mascot.className = "robot-mascot"; }, 2000);
+                }
             } else {
                 actionsDiv.innerHTML = `<span style="color:red">✗ Failed to execute</span>`;
-                mascot.className = "robot-mascot error";
-                setTimeout(() => mascot.className = "robot-mascot", 2000);
+                if (mascot) {
+                    mascot.className = "robot-mascot error";
+                    setTimeout(() => { if (mascot) mascot.className = "robot-mascot"; }, 2000);
+                }
             }
             
             // Append response output bubble
@@ -1000,8 +1132,10 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             button.innerText = "Error";
             console.error(error);
-            mascot.className = "robot-mascot error";
-            setTimeout(() => mascot.className = "robot-mascot", 2000);
+            if (mascot) {
+                mascot.className = "robot-mascot error";
+                setTimeout(() => { if (mascot) mascot.className = "robot-mascot"; }, 2000);
+            }
         }
     };
 
@@ -1020,7 +1154,7 @@ document.addEventListener("DOMContentLoaded", () => {
         button.nextElementSibling.disabled = true;
         
         const mascot = document.getElementById("robot-mascot");
-        mascot.className = "robot-mascot listening";
+        if (mascot) mascot.className = "robot-mascot listening";
         
         try {
             const response = await fetch("/api/sandbox/execute", {
@@ -1034,12 +1168,16 @@ document.addEventListener("DOMContentLoaded", () => {
             
             if (data.success) {
                 actionsDiv.innerHTML = `<span style="color:var(--accent-green)">✓ Executed successfully</span>`;
-                mascot.className = "robot-mascot success";
-                setTimeout(() => mascot.className = "robot-mascot", 2000);
+                if (mascot) {
+                    mascot.className = "robot-mascot success";
+                    setTimeout(() => { if (mascot) mascot.className = "robot-mascot"; }, 2000);
+                }
             } else {
                 actionsDiv.innerHTML = `<span style="color:red">✗ Execution failed</span>`;
-                mascot.className = "robot-mascot error";
-                setTimeout(() => mascot.className = "robot-mascot", 2000);
+                if (mascot) {
+                    mascot.className = "robot-mascot error";
+                    setTimeout(() => { if (mascot) mascot.className = "robot-mascot"; }, 2000);
+                }
             }
             
             appendMessageBubble("assistant", data.formatted_output, {
@@ -1231,9 +1369,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 wakeWordRecognition.stop(); // Stop listening during process
                 playWakeChime();
                 
-                // Wake up Mascot widget
+                // Wake up Mascot widget if present
                 const mascot = document.getElementById("robot-mascot");
-                mascot.className = "robot-mascot listening";
+                if (mascot) mascot.className = "robot-mascot listening";
 
                 userInput.value = query;
                 
