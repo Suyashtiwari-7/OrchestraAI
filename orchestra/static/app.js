@@ -1498,44 +1498,97 @@ document.addEventListener("DOMContentLoaded", () => {
     // ============================================
     // Voice Feedback Toggle
     // ============================================
-    const voiceFeedbackBtn = document.getElementById("btn-voice-toggle");
-    const voiceStatusIndicator = document.getElementById("voice-status-indicator");
+    // 🎙️ Live Voice (STT + TTS + Hands-Free STS)
+    // ============================================
+    const micBtn = document.getElementById("mic-btn");
+    const voiceToggleBtn = document.getElementById("voice-toggle-btn");
+    const orbContainer = document.querySelector(".orb-container");
 
-    // Load initial voice status
-    async function loadVoiceStatus() {
-        try {
-            const res = await fetch("/api/voice/status");
-            const data = await res.json();
-            if (data.enabled) {
-                voiceFeedbackBtn?.classList.add("active");
-                if (voiceStatusIndicator) voiceStatusIndicator.textContent = "ON";
-            } else {
-                voiceFeedbackBtn?.classList.remove("active");
-                if (voiceStatusIndicator) voiceStatusIndicator.textContent = "OFF";
+    let isHandsFreeLive = false;
+    let isMicRecording = false;
+    let recognition = null;
+
+    // Initialize Web Speech API if supported
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onstart = () => {
+            isMicRecording = true;
+            micBtn?.classList.add("recording");
+            orbContainer?.classList.add("listening");
+            orbContainer?.classList.remove("thinking", "speaking");
+            
+            // Send interrupt to silence any previous AI speaking immediately
+            fetch("/api/voice/interrupt", { method: "POST" }).catch(() => {});
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        };
+
+        recognition.onresult = (event) => {
+            let transcript = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                transcript += event.results[i][0].transcript;
             }
-        } catch (e) {
-            // Silently ignore
-        }
-    }
-    loadVoiceStatus();
+            if (userInput) userInput.value = transcript;
+        };
 
-    if (voiceFeedbackBtn) {
-        voiceFeedbackBtn.addEventListener("click", async () => {
-            try {
-                const res = await fetch("/api/voice/toggle", { method: "POST" });
-                const data = await res.json();
-                if (data.success) {
-                    if (data.enabled) {
-                        voiceFeedbackBtn.classList.add("active");
-                        if (voiceStatusIndicator) voiceStatusIndicator.textContent = "ON";
-                    } else {
-                        voiceFeedbackBtn.classList.remove("active");
-                        if (voiceStatusIndicator) voiceStatusIndicator.textContent = "OFF";
-                    }
-                }
-            } catch (e) {
-                console.error("Voice toggle failed:", e);
+        recognition.onerror = (event) => {
+            console.warn("Speech recognition error:", event.error);
+            isMicRecording = false;
+            micBtn?.classList.remove("recording");
+            orbContainer?.classList.remove("listening");
+        };
+
+        recognition.onend = () => {
+            isMicRecording = false;
+            micBtn?.classList.remove("recording");
+            orbContainer?.classList.remove("listening");
+
+            // If user spoke something and in hands-free live mode or non-empty prompt, auto-submit
+            if (userInput && userInput.value.trim().length > 0) {
+                orbContainer?.classList.add("thinking");
+                chatForm?.dispatchEvent(new Event("submit", { cancelable: true }));
+            }
+        };
+    }
+
+    // Mic button click: Dictate text
+    if (micBtn) {
+        micBtn.addEventListener("click", () => {
+            if (!recognition) {
+                alert("Speech recognition is not supported in this browser. Please use Chrome/Edge.");
+                return;
+            }
+            if (isMicRecording) {
+                recognition.stop();
+            } else {
+                try { recognition.start(); } catch (e) { console.error(e); }
             }
         });
     }
+
+    // Toggle Hands-Free Live Voice Mode (Orb click or Voice Toggle Btn)
+    function toggleHandsFreeVoice() {
+        if (!recognition) {
+            alert("Speech recognition is not supported in this browser. Please use Chrome/Edge.");
+            return;
+        }
+        isHandsFreeLive = !isHandsFreeLive;
+        if (voiceToggleBtn) {
+            voiceToggleBtn.title = isHandsFreeLive ? "🎙️ Live Voice: ON" : "🎙️ Hey DARKI: OFF";
+            voiceToggleBtn.classList.toggle("active", isHandsFreeLive);
+        }
+        if (isHandsFreeLive) {
+            try { recognition.start(); } catch (e) { console.error(e); }
+        } else {
+            recognition.stop();
+            orbContainer?.classList.remove("listening", "thinking", "speaking");
+        }
+    }
+
+    if (voiceToggleBtn) voiceToggleBtn.addEventListener("click", toggleHandsFreeVoice);
+    if (orbContainer) orbContainer.addEventListener("click", toggleHandsFreeVoice);
 });

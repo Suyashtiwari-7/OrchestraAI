@@ -1941,4 +1941,90 @@ button {
     transform: translateY(1px);
 }
 
+/* ============================================ */
+/* 🌟 Live Voice 3D Orb & Voice Wave Animations  */
+/* ============================================ */
+
+.orb-container {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    margin: 30px auto 16px;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+}
+
+.orb-container:hover {
+    transform: scale(1.06);
+}
+
+.orb-fallback {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffd700 0%, #b8860b 45%, #1a1600 85%);
+    box-shadow: 0 0 35px rgba(230, 200, 0, 0.35), inset 0 0 20px rgba(255, 255, 255, 0.4);
+    position: relative;
+    overflow: hidden;
+    animation: orbBreathing 4s ease-in-out infinite alternate;
+}
+
+@keyframes orbBreathing {
+    0% { box-shadow: 0 0 25px rgba(230, 200, 0, 0.25); transform: scale(0.98); }
+    100% { box-shadow: 0 0 45px rgba(230, 200, 0, 0.5); transform: scale(1.02); }
+}
+
+/* Listening State: Glowing Emerald Green Waves */
+.orb-container.listening .orb-fallback {
+    background: radial-gradient(circle at 35% 35%, #34d399 0%, #059669 45%, #022c22 85%);
+    box-shadow: 0 0 45px rgba(16, 185, 129, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.5);
+    animation: orbListening 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes orbListening {
+    0% { transform: scale(0.95); box-shadow: 0 0 30px rgba(16, 185, 129, 0.4); }
+    100% { transform: scale(1.08); box-shadow: 0 0 55px rgba(16, 185, 129, 0.8); }
+}
+
+/* Thinking State: Pulsing Violet Purple */
+.orb-container.thinking .orb-fallback {
+    background: radial-gradient(circle at 35% 35%, #c084fc 0%, #7c3aed 45%, #2e1065 85%);
+    box-shadow: 0 0 45px rgba(168, 85, 247, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.5);
+    animation: orbThinking 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes orbThinking {
+    0% { transform: rotate(0deg) scale(0.96); }
+    100% { transform: rotate(180deg) scale(1.04); }
+}
+
+/* Speaking State: Energetic Gold Ripple */
+.orb-container.speaking .orb-fallback {
+    background: radial-gradient(circle at 35% 35%, #fde047 0%, #d97706 45%, #451a03 85%);
+    box-shadow: 0 0 60px rgba(245, 158, 11, 0.7), inset 0 0 25px rgba(255, 255, 255, 0.6);
+    animation: orbSpeaking 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes orbSpeaking {
+    0% { transform: scale(0.94); }
+    100% { transform: scale(1.10); }
+}
+
+/* Mic Active Pill Button */
+.mic-icon-btn.recording {
+    background: rgba(239, 68, 68, 0.2) !important;
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+    animation: micPulse 1s infinite alternate;
+}
+
+@keyframes micPulse {
+    0% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+    100% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.7); }
+}
+
 

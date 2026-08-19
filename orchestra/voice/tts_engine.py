@@ -163,22 +163,32 @@ class TTSEngine:
         thread.start()
 
     def _speak_sentence(self, sentence: str):
-        """Speak a single sentence using Kokoro (primary) or Edge-TTS (fallback)."""
-        # Try Kokoro-82M first (local, fast, human-grade)
-        if _ensure_kokoro():
-            try:
-                self._speak_with_kokoro(sentence)
-                return
-            except Exception as e:
-                logger.debug(f"Kokoro TTS failed for sentence, falling back: {e}")
-
-        # Fallback to Edge-TTS (online, Microsoft Neural)
+        """Speak a single sentence using Edge-TTS (primary neural) or Kokoro/SAPI (fallback)."""
+        # Try Edge-TTS first (Ultra-natural Microsoft Neural Voices)
         if _ensure_edge_tts():
             try:
                 self._speak_with_edge_tts(sentence)
                 return
             except Exception as e:
-                logger.error(f"Edge-TTS also failed: {e}")
+                logger.debug(f"[TTS] Edge-TTS failed for sentence, trying Kokoro/offline: {e}")
+
+        # Fallback 1: Kokoro-82M (local offline neural model)
+        if _ensure_kokoro():
+            try:
+                self._speak_with_kokoro(sentence)
+                return
+            except Exception as e:
+                logger.debug(f"[TTS] Kokoro TTS failed: {e}")
+
+        # Fallback 2: Windows native SAPI / pyttsx3 (100% offline system voice)
+        try:
+            import pyttsx3
+            engine = pyttsx3.init()
+            engine.say(sentence)
+            engine.runAndWait()
+            return
+        except Exception as e:
+            logger.error(f"[TTS] Native offline speech fallback failed: {e}")
 
         logger.error("[TTS] All TTS engines failed.")
 

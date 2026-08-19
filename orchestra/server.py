@@ -702,14 +702,12 @@ def api_voice_toggle():
     _voice_enabled = not _voice_enabled
     return {"success": True, "enabled": _voice_enabled}
 
-@app.get("/api/voice/status")
-def api_voice_status():
-    """Check if voice feedback is currently enabled."""
-    return {
-        "enabled": _voice_enabled,
-        "mode": settings.voice_mode,
-        "voice": settings.voice_name,
-    }
+@app.post("/api/voice/interrupt")
+def api_voice_interrupt():
+    """Interrupt and stop any currently playing TTS audio immediately."""
+    if tts_engine:
+        tts_engine.interrupt()
+    return {"success": True, "message": "Voice playback interrupted."}
 
 @app.get("/api/plugins")
 def api_list_plugins():
