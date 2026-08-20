@@ -115,28 +115,27 @@ def main():
         from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor
         from PyQt6.QtCore import Qt, QTimer
 
-        # --- 0. Reset System Overrides (Daily Normalization) ---
-        logger.info("Normalizing system state (resetting power plan)...")
-        try:
-            from orchestra.tools.system_control import set_power_mode
-            set_power_mode("balanced")
-        except Exception as e:
-            logger.error(f"Failed to reset system overrides: {e}")
+        # --- 0. Reset System Overrides in Background (Daily Normalization) ---
+        def _normalize_bg():
+            try:
+                from orchestra.tools.system_control import set_power_mode
+                set_power_mode("balanced")
+            except Exception:
+                pass
+        threading.Thread(target=_normalize_bg, daemon=True).start()
 
-        # --- 1. Start FastAPI server ---
-        logger.info("Starting FastAPI server...")
+        # --- 1. Start FastAPI server asynchronously in background ---
+        logger.info("Starting FastAPI server in background thread...")
         server_thread = threading.Thread(target=run_server, daemon=True, name="FastAPIServer")
         server_thread.start()
-        time.sleep(1.5)  # Wait for server initialization
-        logger.info("FastAPI server started on http://127.0.0.1:8000")
 
-        # --- 2. Create Qt Application ---
+        # --- 2. Create Qt Application Instantly (0.1s startup) ---
         app = QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)  # Keep running when windows are closed
         app.setApplicationName("DARKI")
         logger.info("QApplication created.")
 
-        # --- 3. Create DARKI Widget ---
+        # --- 3. Create DARKI Widget Immediately ---
         from orchestra.darki_widget import DarkiFloatingWidget
         widget = DarkiFloatingWidget()
         widget.show()

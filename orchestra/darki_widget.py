@@ -1366,15 +1366,27 @@ class DarkiFloatingWidget(QWidget):
         self.chat_popup.open_full_chat.connect(self.request_full_chat.emit)
         self.chat_popup.cancel_task.connect(self._handle_task_cancelled)
 
-        # Worker reference
-        self._worker = None
-
         # Start in greeting state (waves and shows the 3D HI! bubble above head)
         self.robot.set_state("greeting")
         
-        # Keep the main chat popup closed on startup so it doesn't block the screen.
+        # Speak startup greeting aloud
+        QTimer.singleShot(600, self._speak_startup_greeting)
+
         # Transition back to idle after 4.5 seconds.
         QTimer.singleShot(4500, lambda: self.robot.set_state("idle"))
+
+    def _speak_startup_greeting(self):
+        """Speak a warm greeting aloud on application launch."""
+        def _speak():
+            try:
+                import threading
+                from orchestra.voice.tts_engine import TTSEngine
+                tts = TTSEngine(edge_voice="en-US-GuyNeural")
+                tts.speak_text("Hi Suyash! DARKI is online and ready.")
+            except Exception:
+                pass
+        import threading
+        threading.Thread(target=_speak, daemon=True).start()
 
     def _handle_task_cancelled(self):
         """Abort background worker thread when user hits the kill-switch."""
