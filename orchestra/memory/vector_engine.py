@@ -7,6 +7,7 @@ using numpy and character/subword n-gram hashing for local-first cognitive retri
 
 import re
 import math
+import zlib
 import logging
 from typing import List, Dict, Any, Tuple, Optional
 import numpy as np
@@ -55,8 +56,8 @@ class VectorMemoryEngine:
         vec = np.zeros(self.dim, dtype=np.float32)
 
         for token in tokens:
-            # Deterministic hash mapping
-            h = hash(token)
+            # Deterministic hash mapping (zlib.crc32 is stable across restarts, unlike hash())
+            h = zlib.crc32(token.encode('utf-8'))
             idx = abs(h) % self.dim
             # Alternate sign to reduce hash collisions
             sign = 1.0 if (h & 1) == 0 else -1.0

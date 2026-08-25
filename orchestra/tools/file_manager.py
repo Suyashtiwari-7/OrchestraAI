@@ -2,7 +2,7 @@
 OrchestraAI — File Manager Tool
 =================================
 File system operations: create, move, rename, search, delete files.
-All operations include safety checks and user-friendly responses.
+All operations include safety checks, path blacklisting, and user-friendly responses.
 """
 
 import os
@@ -12,6 +12,38 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 logger = logging.getLogger("orchestra.file_manager")
+
+# ── Protected Path Blacklist ──────────────────────────────────────────
+# DARKI will REFUSE to delete, move, or overwrite anything matching these.
+_HOME = Path.home()
+PROTECTED_PATHS = {
+    Path("C:/"),
+    Path("C:/Windows"),
+    Path("C:/Windows/System32"),
+    Path("C:/Program Files"),
+    Path("C:/Program Files (x86)"),
+    _HOME,
+    _HOME / "Desktop",
+    _HOME / "Documents",
+    _HOME / "Downloads",
+    _HOME / "AppData",
+    _HOME / ".ssh",
+}
+
+
+def _is_path_protected(target: Path) -> bool:
+    """Check if a path is a protected system/user directory."""
+    resolved = target.resolve()
+    for protected in PROTECTED_PATHS:
+        try:
+            if resolved == protected.resolve():
+                return True
+            # Also block the direct parents of protected paths
+            if protected.resolve().parent == resolved:
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def process_response_for_files(response_text: str) -> List[Path]:
@@ -51,6 +83,8 @@ def move_file(source: str, destination: str) -> Dict[str, Any]:
     """Move a file or directory to a new location."""
     try:
         src = Path(source)
+        if _is_path_protected(src):
+            return {"success": False, "error": f"BLOCKED: '{source}' is a protected system path. DARKI cannot move it."}
         if not src.exists():
             return {"success": False, "error": f"Source not found: {source}"}
 
@@ -133,6 +167,8 @@ def delete_file(filepath: str) -> Dict[str, Any]:
     """
     try:
         path = Path(filepath)
+        if _is_path_protected(path):
+            return {"success": False, "error": f"BLOCKED: '{filepath}' is a protected system path. DARKI cannot delete it."}
         if not path.exists():
             return {"success": False, "error": f"File not found: {filepath}"}
 
