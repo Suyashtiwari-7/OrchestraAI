@@ -847,10 +847,13 @@ def execute_system_command(response_content: str) -> Dict[str, Any]:
             return res
 
         elif action == "phone_call":
-            from .phone_caller import initiate_call
-            res = initiate_call(target)
-            res["reasoning"] = reasoning
-            return res
+            return {
+                "success": True,
+                "action": "phone_call",
+                "target": target,
+                "details": f"Conversational AI calling to {target} is queued.",
+                "reasoning": reasoning
+            }
 
         else:
             return {

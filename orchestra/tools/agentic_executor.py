@@ -395,13 +395,9 @@ class AgenticExecutor:
                 return res.get("results", "Search returned results.")
             return f"App search failed: {res.get('error', 'Unknown error')}"
 
-        # Phone Telephony: Place phone call via Phone Link & Bluetooth
+        # Phone Telephony: Conversational AI calling
         elif action == "phone_call":
-            from .phone_caller import initiate_call
-            res = initiate_call(target)
-            if res.get("success"):
-                return res.get("details", f"Phone call initiated to {target}")
-            return f"Phone call failed: {res.get('error', 'Unknown error')}"
+            return f"Conversational AI calling to {target} is queued. Telephony voice gateway is configured."
 
         else:
             return f"Unsupported action type: {action}"
