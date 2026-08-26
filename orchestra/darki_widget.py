@@ -1376,13 +1376,22 @@ class DarkiFloatingWidget(QWidget):
         QTimer.singleShot(4500, lambda: self.robot.set_state("idle"))
 
     def _speak_startup_greeting(self):
-        """Speak a warm greeting aloud on application launch."""
+        """Speak executive morning briefing or warm greeting aloud on application launch."""
         def _speak():
             try:
-                import threading
                 from orchestra.voice.tts_engine import TTSEngine
-                tts = TTSEngine(edge_voice="en-US-GuyNeural")
-                tts.speak_text("Hi Suyash! DARKI is online and ready.")
+                from orchestra.assistant.morning_briefing import MorningBriefing
+                from orchestra.config import settings
+
+                tts = TTSEngine(edge_voice=settings.voice_name or "en-US-GuyNeural")
+                briefing = MorningBriefing(city="Indore", user_name=settings.user_name or "Suyash")
+
+                if briefing.should_trigger_briefing():
+                    script = briefing.generate_briefing_text()
+                    briefing.mark_briefing_done()
+                    tts.speak_text(script)
+                else:
+                    tts.speak_text(f"Hi {settings.user_name or 'Suyash'}! DARKI is online and ready.")
             except Exception:
                 pass
         import threading

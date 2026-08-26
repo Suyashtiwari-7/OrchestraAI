@@ -125,15 +125,7 @@ profile_memory = UserProfileMemory(db=memory.db)
 extractor = InsightExtractor(db=memory.db, router=router)
 extractor.start_background_timer()  # Batch extraction every 5 minutes during idle
 
-# Initialize JARVIS subsystems
-try:
-    from .tools.plugin_manager import PluginManager
-    plugin_manager = PluginManager(settings.plugins_dir)
-    _plugin_count = plugin_manager.discover()
-    logger.info(f"Plugin Manager: {_plugin_count} plugin(s) loaded.")
-except Exception as e:
-    logger.error(f"Plugin Manager init failed: {e}")
-    plugin_manager = None
+
 
 try:
     from .voice.tts_engine import TTSEngine
@@ -709,12 +701,7 @@ def api_voice_interrupt():
         tts_engine.interrupt()
     return {"success": True, "message": "Voice playback interrupted."}
 
-@app.get("/api/plugins")
-def api_list_plugins():
-    """List all loaded plugins."""
-    if plugin_manager is None:
-        return {"plugins": [], "error": "Plugin manager not initialized."}
-    return {"plugins": plugin_manager.list_plugins()}
+
 
 # --- Cybersecurity (EDR) Endpoints ---
 
@@ -766,6 +753,30 @@ def api_assistant_add_vip(req: AddVIPRequest):
         return {"success": False, "error": "Assistant engine not running."}
     proactive_engine.vip_filter.add_vip(req.name, req.relationship)
     return {"success": True, "message": f"Added {req.name} to VIP contacts."}
+
+@app.get("/api/assistant/vip-feed")
+def api_assistant_vip_feed():
+    """Get live feed of VIP and high-priority messages."""
+    if proactive_engine is None:
+        return {"vip_contacts": [], "recent_alerts": []}
+    return {
+        "vip_contacts": [
+            {"name": name, "relationship": rel}
+            for name, rel in proactive_engine.vip_filter.vip_contacts.items()
+        ],
+        "recent_alerts": getattr(proactive_engine, "_recent_alerts", [])
+    }
+
+@app.get("/api/assistant/briefing")
+def api_assistant_morning_briefing(city: Optional[str] = "Indore"):
+    """Get the daily executive morning briefing text."""
+    try:
+        from .assistant.morning_briefing import MorningBriefing
+        briefing = MorningBriefing(city=city, user_name=settings.user_name or "Suyash")
+        script = briefing.generate_briefing_text()
+        return {"success": True, "briefing_text": script}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 # --- Task Kill-Switch / Cancellation Endpoint ---
 _current_agent_exec = None

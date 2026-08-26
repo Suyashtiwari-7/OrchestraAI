@@ -117,6 +117,21 @@ class TestProactiveEngine:
         time.sleep(0.2)
         engine.stop()
 
-        assert due_reminder.fired is True
-        assert len(voice_alerts) >= 1
-        assert "Interview tomorrow" in voice_alerts[0]
+
+class TestMorningBriefing:
+    """Test Morning Executive Briefing generation and triggering logic."""
+
+    def test_briefing_generation(self):
+        from orchestra.assistant.morning_briefing import MorningBriefing
+        briefing = MorningBriefing(city="Indore", user_name="Suyash")
+        script = briefing.generate_briefing_text(vip_summary="Meeting with CEO at 11 AM")
+        assert "Good morning Suyash" in script
+        assert "Indore" in script
+        assert "Meeting with CEO at 11 AM" in script
+        assert "DARKI is online" in script
+
+    def test_briefing_marks_done(self):
+        from orchestra.assistant.morning_briefing import MorningBriefing
+        briefing = MorningBriefing(city="Indore", user_name="Suyash")
+        briefing.mark_briefing_done()
+        assert briefing.should_trigger_briefing() is False

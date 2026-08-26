@@ -5,7 +5,8 @@ Uses Windows native RegisterHotKey API directly inside the Qt
 event loop. No external libraries needed. No admin privileges required.
 Works system-wide even when another app has focus.
 
-Hotkeys: Ctrl+0 (top row), Ctrl+Numpad0
+Primary Hotkey: Alt+Space (Spotlight/Raycast style)
+Secondary Hotkeys: Ctrl+0 (top row), Ctrl+Numpad0
 """
 
 import ctypes
@@ -16,17 +17,20 @@ from typing import Callable, Optional
 logger = logging.getLogger("orchestra.hotkey")
 
 # Win32 constants
+MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_NOREPEAT = 0x4000
-VK_0 = 0x30        # Top-row '0'
-VK_NUMPAD0 = 0x60  # Numpad '0'
+VK_SPACE = 0x20     # Space key
+VK_0 = 0x30         # Top-row '0'
+VK_NUMPAD0 = 0x60   # Numpad '0'
 WM_HOTKEY = 0x0312
 
 user32 = ctypes.windll.user32
 
 # Hotkey IDs
-HOTKEY_CTRL_0 = 1
-HOTKEY_CTRL_NUMPAD0 = 2
+HOTKEY_ALT_SPACE = 1
+HOTKEY_CTRL_0 = 2
+HOTKEY_CTRL_NUMPAD0 = 3
 
 
 class NativeHotkeyFilter:
@@ -43,6 +47,7 @@ class NativeHotkeyFilter:
     def start(self):
         """Register global hotkeys with Windows."""
         hotkeys = [
+            (HOTKEY_ALT_SPACE, MOD_ALT | MOD_NOREPEAT, VK_SPACE, "Alt+Space"),
             (HOTKEY_CTRL_0, MOD_CONTROL | MOD_NOREPEAT, VK_0, "Ctrl+0"),
             (HOTKEY_CTRL_NUMPAD0, MOD_CONTROL | MOD_NOREPEAT, VK_NUMPAD0, "Ctrl+Numpad0"),
         ]
@@ -69,7 +74,6 @@ class NativeHotkeyFilter:
         Returns True if a hotkey was detected and the callback was fired.
         """
         msg = wintypes.MSG()
-        # PeekMessage with PM_REMOVE: check for WM_HOTKEY without blocking
         PM_REMOVE = 0x0001
         if user32.PeekMessageW(ctypes.byref(msg), None, WM_HOTKEY, WM_HOTKEY, PM_REMOVE):
             if msg.message == WM_HOTKEY:
@@ -80,10 +84,9 @@ class NativeHotkeyFilter:
         return False
 
 
-# Backward-compatible wrapper so darki_main.py doesn't need changes
 class HotkeyListener:
     """
-    Drop-in replacement for the old keyboard-library-based listener.
+    Drop-in replacement for global hotkey handling.
     Uses native Win32 RegisterHotKey + a QTimer polling loop.
     """
 
@@ -102,7 +105,7 @@ class HotkeyListener:
             self._timer = QTimer()
             self._timer.timeout.connect(self._native.check_message)
             self._timer.start(100)  # 100ms = responsive, near-zero CPU
-            logger.info("Hotkey polling timer started (100ms interval).")
+            logger.info("Hotkey polling timer started (100ms interval for Alt+Space / Ctrl+0).")
         except ImportError:
             logger.warning("PyQt6 not available — hotkey polling disabled.")
 
