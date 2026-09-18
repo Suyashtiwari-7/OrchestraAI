@@ -59,7 +59,7 @@ You have 3 easy ways to launch:
 ## ⌨️ Activation & Hotkeys
 
 * 🎙️ **Voice Wake-Up:** Say *"Hey DARKI"* or *"DARKI"* out loud for hands-free control.
-* ⌨️ **Global Hotkey:** Press **`Ctrl + 0`** (or **`Ctrl + Num 0`** on Numpad) anywhere on your PC to instantly summon the floating chat box.
+* ⌨️ **Global Hotkey:** Press **`Alt + Space`** (or **`Ctrl + 0`** / **`Ctrl + Num 0`** on Numpad) anywhere on your PC to instantly summon the floating chat box.
 * 🖱️ **Desktop Mascot:** Click the 3D floating robot in the bottom-right corner of your screen.
 * 🛑 **Emergency Kill-Switch:** Click the **`🛑`** button in the chat popup or call `/api/task/cancel` to instantly abort active automation steps.
 * 🖱️ **Human Mouse Override:** Moving your mouse automatically pauses DARKI's clicks and yields control to you, resuming after 4.5s of idle.
@@ -67,6 +67,8 @@ You have 3 easy ways to launch:
 ---
 
 ## 🏗️ Architectural Overview
+
+See [HANDOVER.md](HANDOVER.md) for full architectural blueprints, security hardening details, and developer handover documentation.
 
 ```
                                       🤖 DARKI
@@ -87,4 +89,5 @@ Run the full automated test suite anytime to verify all modules:
 ```powershell
 venv\Scripts\python.exe -m pytest tests/ --ignore=tests/e2e -v
 ```
-*(All 85 unit tests pass cleanly).*
+*(All 94 unit tests pass cleanly).*
+
